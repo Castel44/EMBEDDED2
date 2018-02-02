@@ -121,6 +121,7 @@ onehot_encoder = OneHotEncoder(sparse=False)
 y_train = onehot_encoder.fit_transform(y_train)
 y_test = onehot_encoder.fit_transform(y_test)
 
+print('ELM\n')
 model = hpelm.ELM(64,10, classification ="c")
 model.add_neurons(500, 'sigm')
 model.add_neurons(64, 'lin')
@@ -129,7 +130,7 @@ t = time.time()
 model.train(x_train,y_train)
 elapsed_time_train = time.time() - t
 y_train_predicted = model.predict(x_train)
-print('ELM')
+
 print("Training time: %f" % elapsed_time_train)
 print('Training Error: ',model.error(y_train,y_train_predicted))
 y_test_predicted = model.predict(x_test)
@@ -137,17 +138,40 @@ print('Test Error: ',model.error(y_test,y_test_predicted))
 #PORCODDIO NON FUNZIONA LA CONFUSION MATRIX SU STO TOOLBOX DI MERDA
 #print(model.confusion(y_test,y_test_predicted))
 
+y_test_sk = y_test.argmax(1)
+y_test_predicted_sk = y_test_predicted.argmax(1)
+acc_score = accuracy_score(y_test_sk, y_test_predicted_sk)
+cnf_matrix = confusion_matrix(y_test_sk, y_test_predicted_sk)
+class_report = classification_report(y_test_sk, y_test_predicted_sk)
+np.set_printoptions(precision=2)
+print("Accuracy:\n", acc_score)
+print("Confusion Matrix:\n", cnf_matrix)
+print("Classification report\n: ", class_report)
+
+
+print('ELM CV')
 t = time.time()
-model.train(x_train,y_train, 'CV', k=10)
+model.train(x_train,y_train, 'CV', k=100)
 elapsed_time_train = time.time() - t
 print(str(model))
 y_train_predicted = model.predict(x_train)
-print('ELM')
+
 print("Training time: %f" % elapsed_time_train)
 print('Training Error: ',model.error(y_train,y_train_predicted))
 y_test_predicted = model.predict(x_test)
 print('Test Error: ',model.error(y_test,y_test_predicted))
 
+y_test_sk = y_test.argmax(1)
+y_test_predicted_sk = y_test_predicted.argmax(1)
+acc_score = accuracy_score(y_test_sk, y_test_predicted_sk)
+cnf_matrix = confusion_matrix(y_test_sk, y_test_predicted_sk)
+class_report = classification_report(y_test_sk, y_test_predicted_sk)
+np.set_printoptions(precision=2)
+print("Accuracy:\n", acc_score)
+print("Confusion Matrix:\n", cnf_matrix)
+print("Classification report\n: ", class_report)
+
+'''
 t = time.time()
 model.train(x_train,y_train, 'LOO', 'OP')
 elapsed_time_train = time.time() - t
@@ -158,6 +182,7 @@ print("Training time: %f" % elapsed_time_train)
 print('Training Error: ',model.error(y_train,y_train_predicted))
 y_test_predicted = model.predict(x_test)
 print('Test Error: ',model.error(y_test,y_test_predicted))
+'''
 
 
 
