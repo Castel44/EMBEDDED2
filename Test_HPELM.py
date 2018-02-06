@@ -86,22 +86,16 @@ for index, (image, label) in enumerate(images_and_labels[:8]):
 plt.show()
 
 from sklearn import decomposition
-
 # Create a Randomized PCA model that takes two components
 randomized_pca = decomposition.PCA(n_components=2)
-
 # Fit and transform the data to the model reduced_data_rpca = randomized_pca.fit_transform(digits.data)
-
 # Create a regular PCA model pca = PCA(n_components=2)
-
 # Fit and transform the data to the model
 reduced_data_rpca = randomized_pca.fit_transform(digits.data)
 type(reduced_data_rpca)
 # Inspect the shape
 reduced_data_rpca.shape
 # reduced to 2D
-
-
 
 colors = ['black', 'blue', 'purple', 'yellow', 'white', 'red', 'lime', 'cyan', 'orange', 'gray']
 for i in range(len(colors)):
