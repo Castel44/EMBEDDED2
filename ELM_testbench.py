@@ -74,7 +74,7 @@ print("Classification report\n: ", class_report)
 
 
 '''
-# 'OP' (L1 reg) does not work, fuck!
+# 'OP' (L1 reg) does not work, fuck! Bug on range of ranking function
 # LOO ELM L1 Regularized
 print('OP-ELM')
 elm = hpelm.ELM(X_train.shape[1], out_class, classification="c")
@@ -96,6 +96,7 @@ cnf_matrix = confusion_matrix(y_test_sk, y_test_predicted_sk)
 print("Confusion Matrix:\n", cnf_matrix)
 print("Classification report\n: ", class_report)
 '''
+
 
 
 # CV ELM 5 fold
