@@ -19,7 +19,6 @@ print(mnist)
 X, y = mnist["data"], mnist["target"]
 print('X shape \n',X.shape, '\n Y shape \n', y.shape)
 
-
 some_digit = X[36000]
 '''
 some_digit_image = some_digit.reshape(28, 28)
@@ -59,16 +58,20 @@ plt.show()
 
 #Create test and training set. MNIST dataset already splitted up
 X_train, X_test, y_train, y_test = X[:60000], X[60000:], y[:60000], y[60000:]
-'''
+
 np.random.seed(42)
 rnd_idx = np.random.permutation(60000)
 X_train = X_train[rnd_idx]
 y_train = y_train[rnd_idx]
-'''
+
+#Scaling data (mean 0, variance 1)
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
 #Train model and save time
 sgd_clf = SGDClassifier(random_state=42)
-forest_clf = RandomForestClassifier(random_state=42)
 t = time.time()
 sgd_clf.fit(X_train, y_train)
 elapsed_time_train = time.time() - t
@@ -91,6 +94,7 @@ print("Confusion Matrix:\n", cnf_matrix)
 print("Classification report\n: ", class_report)
 
 print('FOREST\n')
+forest_clf = RandomForestClassifier(random_state=42)
 t = time.time()
 forest_clf.fit(X_train, y_train)
 elapsed_time_train = time.time() - t
