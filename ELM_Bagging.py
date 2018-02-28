@@ -1,4 +1,4 @@
-# Import dataset, from another files, already scaled (StandardScaler) and splitted
+# Import dataset, from another files, already splitted and shuffled
 import time
 
 import hpelm
@@ -6,12 +6,14 @@ import numpy as np
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 
 from loadMNIST_orig import X_test, y_test, X_train, y_train
 
+X_test_orig = X_test
+X_train_orig = X_train
 
 # Useful functions
-
 def correct_prediction(labels, prediction):
     """Reshape vector from one-hot-encode format and create a boolean array where each image is correctly classified"""
 
@@ -19,7 +21,6 @@ def correct_prediction(labels, prediction):
     cls_pred = prediction.argmax(1)
     correct = (cls_true == cls_pred)
     return correct
-
 
 def ensemble_prediction():
     pred_labels = []
@@ -44,18 +45,23 @@ def ensemble_prediction():
 
 
 #######################################################################################################################
-
 # HYPERPARAMETERS
 np.set_printoptions(precision=2)
-np.random.seed(42)
+# np.random.seed(42)
 
-n_estimator = 5
+n_estimator = 10
 
-neuron_number = 512
+neuron_number = 4096
 out_class = 10
 CV_folds = 10
-batch_size = 512
+batch_size = 1024
 prec = "single"
+
+#######################################################################################################################
+# Scaling data (mean 0, variance 1)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train_orig)
+X_test = scaler.transform(X_test_orig)
 
 # Reshape and apply OneHotEncoder to compute the 10class classifier
 y_train = y_train.reshape(-1, 1)
@@ -71,12 +77,12 @@ y_train_predicted = []
 y_test_predicted = []
 for i in range(n_estimator):
     print('Estim #%d' % i)
-    model[i] = hpelm.ELM(X_train.shape[1], out_class, classification="c", batch=batch_size, accelerator="GPU",
+    model[i] = hpelm.ELM(X_train.shape[1], out_class, classification="wc", batch=batch_size, accelerator="GPU",
                          precision=prec)
     model[i].add_neurons(neuron_number, 'sigm')
     print(str(model[i]))
     t = time.time()
-    model[i].train(X_train, y_train, 'c')
+    model[i].train(X_train, y_train, 'wc')
     elapsed_time_train = time.time() - t
     pred_train = model[i].predict(X_train)
     y_train_predicted.append(pred_train)
@@ -126,7 +132,7 @@ print("\nEnsemble accuracy: ", ensemble_acc * 100)
 print("Best net accuracy: ", test_accuracies[best_net] * 100)
 
 # Accuracy metrics
-print("###############################################################################################")
+print("\n###############################################################################################")
 print("Ensemble insight")
 class_report_ensemble = classification_report(y_test.argmax(1), ensemble_cls_pred)
 cnf_matrix_ensemble = confusion_matrix(y_test.argmax(1), ensemble_cls_pred)
@@ -144,7 +150,6 @@ print("#########################################################################
 #######################################################################################################################
 # Helper-functions for plotting and printing comparisons
 import matplotlib.pyplot as plt
-
 
 def plot_images(images,  # Images to plot, 2-d array.
                 cls_true,  # True class-no for images.
@@ -193,7 +198,7 @@ def plot_images(images,  # Images to plot, 2-d array.
 
 
 def plot_images_comparison(idx):
-    plot_images(images=X_test[idx, :],
+    plot_images(images=X_test_orig[idx, :],
                 cls_true=y_test.argmax(1)[idx],
                 ensemble_cls_pred=ensemble_cls_pred[idx],
                 best_cls_pred=best_net_cls_pred[idx])
@@ -243,28 +248,3 @@ num_classes = 10
 
 plot_images_comparison(idx=ensemble_better)
 plot_images_comparison(idx=best_net_better)
-
-'''
-print('\nELM-GPU single')
-elm = hpelm.ELM(X_train.shape[1],out_class, classification ="c", batch=batch_size, accelerator="GPU", precision='single')
-elm.add_neurons(neuron_number,'sigm')
-#elm.add_neurons(X_train.shape[1],'lin')
-print(str(elm))
-# Training model
-t = time.time()
-elm.train(X_train,y_train, 'c')
-elapsed_time_train = time.time() - t
-y_train_predicted = elm.predict(X_train)
-print("Training time: %f" % elapsed_time_train)
-print('Training Accuracy: ',(1-elm.error(y_train,y_train_predicted)))
-# Prediction from trained model
-y_test_predicted = elm.predict(X_test)
-print('Test Accuracy: ',(1-elm.error(y_test,y_test_predicted)))
-#print(elm.confusion(y_test,y_test_predicted)) #value as 4E+5
-y_test_sk = y_test.argmax(1)
-y_test_predicted_sk = y_test_predicted.argmax(1)
-class_report = classification_report(y_test_sk, y_test_predicted_sk)
-cnf_matrix = confusion_matrix(y_test_sk, y_test_predicted_sk)
-print("Confusion Matrix:\n", cnf_matrix)
-print("Classification report\n: ", class_report)
-'''
