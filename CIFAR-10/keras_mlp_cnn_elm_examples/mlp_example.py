@@ -6,6 +6,7 @@ from keras.layers import Dense, Dropout, Activation, InputLayer, Flatten
 from keras.callbacks import TensorBoard
 import itertools
 import os
+import tensorflow as tf
 
 run_var = 0
 
@@ -13,12 +14,12 @@ data_path = os.getcwd() + '/mlp_vs_elm_cifar10'
 
 batch_size = 32
 num_classes = 10
-epochs = 50
+epochs = 1
 data_augmentation = False
 
 ##### HYPERPARAMS ##############
 
-hyperpar = {'mlp': [False,True],  'drop' : [0,0.25] }
+hyperpar = {'mlp': [False,True],  'drop' : [0 , 0.25] }
 
 cifar10.maybe_download_and_extract()
 
@@ -47,7 +48,7 @@ def createntrain(hyperpar,save_dir):
     model = Sequential()
     model.add(InputLayer(input_shape=(32, 32, 3)))
     model.add(Flatten())
-    model.add(Dense(1000, trainable=mlp))
+    model.add(Dense(100, trainable=mlp))
     model.add(Activation('tanh'))
     model.add(Dropout(dropout))
     model.add(Dense(num_classes))
@@ -55,7 +56,7 @@ def createntrain(hyperpar,save_dir):
 
     print(model.summary())
 
-    opt = keras.optimizers.nadam(lr=0.001,schedule_decay=0.004)
+    opt = keras.optimizers.Adam(lr=0.001,decay=0.0001)
 
     model.compile(loss='categorical_crossentropy',
                 optimizer=opt,
@@ -78,6 +79,7 @@ def createntrain(hyperpar,save_dir):
             shuffle=True, callbacks=[tensorboard, ckpt,early_stopping])
 
     print(model.summary())
+    return model
 
 
 def main():
@@ -97,7 +99,9 @@ def main():
 
         save_dir = data_path + '/%s' %str(list(comb.items()))
 
-        createntrain(comb,save_dir)
+        model = createntrain(comb,save_dir)
+        del model
+        keras.backend.clear_session() # required otherwise keras will raise a weird error
 
         print("RUN number %d COMPLETED\n\n" % run_var)
         print('tensorboard --logdir=%s' % save_dir)
