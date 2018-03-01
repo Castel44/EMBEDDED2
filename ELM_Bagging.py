@@ -1,4 +1,5 @@
 # Import dataset, from another files, already splitted and shuffled
+import random
 import time
 
 import hpelm
@@ -46,16 +47,17 @@ def ensemble_prediction():
 
 #######################################################################################################################
 # HYPERPARAMETERS
-np.set_printoptions(precision=2)
+np.set_printoptions(precision=3)
 # np.random.seed(42)
 
-n_estimator = 10
+n_estimator = 100
 
 neuron_number = 4096
 out_class = 10
-CV_folds = 10
-batch_size = 1024
+CV_folds = 10  # not need here
+batch_size = neuron_number
 prec = "single"
+neuron_type = ('tanh', 'sigm')
 
 #######################################################################################################################
 # Scaling data (mean 0, variance 1)
@@ -72,27 +74,28 @@ y_test = onehot_encoder.fit_transform(y_test)
 
 print()
 # init list of models and prediction
-model = [None] * n_estimator
+#model = [None] * n_estimator
 y_train_predicted = []
 y_test_predicted = []
+tstart = time.time()
 for i in range(n_estimator):
     print('Estim #%d' % i)
-    model[i] = hpelm.ELM(X_train.shape[1], out_class, classification="wc", batch=batch_size, accelerator="GPU",
+    model = hpelm.ELM(X_train.shape[1], out_class, classification="wc", batch=batch_size, accelerator="GPU",
                          precision=prec)
-    model[i].add_neurons(neuron_number, 'sigm')
-    print(str(model[i]))
+    model.add_neurons(neuron_number, random.choice(neuron_type))
+    print(str(model))
     t = time.time()
-    model[i].train(X_train, y_train, 'wc')
+    model.train(X_train, y_train, 'wc')
     elapsed_time_train = time.time() - t
-    pred_train = model[i].predict(X_train)
+    pred_train = model.predict(X_train)
     y_train_predicted.append(pred_train)
     print("Training time: %f" % elapsed_time_train)
-    print('Training Accuracy: ', (1 - model[i].error(y_train, pred_train)))
+    print('Training Accuracy: ', (1 - model.error(y_train, pred_train)))
     print()
-    pred_test = model[i].predict(X_test)
+    pred_test = model.predict(X_test)
     y_test_predicted.append(pred_test)
 
-print("Training done!")
+print("Training done in ", (time.time() - tstart), "seconds!!")
 print("###############################################################################################")
 
 # pred labels on test-set
@@ -103,7 +106,7 @@ print("Min test-set accuracy:  {0:.4f}".format(np.min(test_accuracies)))
 print("Max test-set accuracy:  {0:.4f}".format(np.max(test_accuracies)))
 
 # building ensemble
-# TODO: hard voting and soft voting
+# TODO: hard voting and soft voting or softmax and selector
 ensemble_pred_labels = np.mean(pred_labels, axis=0)
 ensemble_cls_pred = np.argmax(ensemble_pred_labels, axis=1)  # one-hot-reverted
 ensemble_correct = (ensemble_cls_pred == y_test.argmax(1))
@@ -147,6 +150,22 @@ print("Best Net confusion Matrix:\n", cnf_matrix_bestnet)
 print("Best Net classification report\n: ", class_report_bestnet)
 print("###############################################################################################")
 
+print("\nCOMPARISON HARD-VOTING VS MEAN BAGGING")
+hard_voting_cls_pred = np.apply_along_axis(lambda x: np.argmax(np.bincount(x)), axis=0, arr=pred_labels.argmax(2))
+hard_voting_correct = (hard_voting_cls_pred == y_test.argmax(1))
+hard_voting_incorrect = np.logical_not(hard_voting_correct)
+print("Hard voting correct estimated istances: ", np.sum(hard_voting_correct))
+print("Mean better classification: ", ensemble_better.sum())
+hard_voting_better = np.logical_and(ensemble_incorrect, hard_voting_correct)
+mean_better = np.logical_and(ensemble_correct, hard_voting_incorrect)
+print("Hard Voting better classification: ", hard_voting_better.sum())
+print("Mean Bagging better classification: ", mean_better.sum())
+hard_voting_acc = (hard_voting_cls_pred == y_test.argmax(1)).mean()
+print("Hard voting accuracy: ", hard_voting_acc * 100)
+print("Mean accuracy: ", ensemble_acc * 100)
+print("###############################################################################################")
+
+'''
 #######################################################################################################################
 # Helper-functions for plotting and printing comparisons
 import matplotlib.pyplot as plt
@@ -248,3 +267,4 @@ num_classes = 10
 
 plot_images_comparison(idx=ensemble_better)
 plot_images_comparison(idx=best_net_better)
+'''
