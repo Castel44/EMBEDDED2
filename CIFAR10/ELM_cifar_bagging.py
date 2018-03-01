@@ -51,7 +51,7 @@ np.set_printoptions(precision=2)
 
 n_estimator = 100
 
-neuron_number = 4096
+neuron_number = 8192
 out_class = 10
 CV_folds = 10
 batch_size = neuron_number
@@ -142,7 +142,7 @@ print("Min test-set accuracy:  {0:.4f}".format(np.min(test_accuracies)))
 print("Max test-set accuracy:  {0:.4f}".format(np.max(test_accuracies)))
 
 # building ensemble
-# TODO: hard voting and soft voting
+# TODO: selector
 ensemble_pred_labels = np.mean(pred_labels, axis=0)
 ensemble_cls_pred = np.argmax(ensemble_pred_labels, axis=1)  # one-hot-reverted
 ensemble_correct = (ensemble_cls_pred == y_test.argmax(1))
