@@ -9,10 +9,8 @@ from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
-from loadMNIST_orig import X_test, y_test, X_train, y_train
+from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
 
-X_test_orig = X_test
-X_train_orig = X_train
 
 # Useful functions
 def correct_prediction(labels, prediction):
@@ -22,6 +20,7 @@ def correct_prediction(labels, prediction):
     cls_pred = prediction.argmax(1)
     correct = (cls_true == cls_pred)
     return correct
+
 
 def ensemble_prediction():
     pred_labels = []
@@ -47,45 +46,82 @@ def ensemble_prediction():
 
 #######################################################################################################################
 # HYPERPARAMETERS
-np.set_printoptions(precision=3)
+np.set_printoptions(precision=2)
 # np.random.seed(42)
 
 n_estimator = 100
 
-neuron_number = 4096
+neuron_number = 8192
 out_class = 10
-CV_folds = 10  # not need here
+CV_folds = 10
 batch_size = neuron_number
 prec = "single"
 neuron_type = ('tanh', 'sigm')
 
 #######################################################################################################################
-# Scaling data (mean 0, variance 1)
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train_orig)
-X_test = scaler.transform(X_test_orig)
+# Load and preprocess dataset
+X_train = train_data.astype('float32')
+y_train = train_labels.astype('float32')
+X_test = test_data.astype('float32')
+y_test = test_labels.astype('float32')
 
-# Reshape and apply OneHotEncoder to compute the 10class classifier
+print('CIFAR 10 DATASET')
+print('X_train shape ', X_train.shape)
+print('y_train shape ', y_train.shape)
+print('X_test shape ', X_test.shape)
+print('y_test shape ', y_test.shape)
+out_class = len(np.unique(y_test))
+print('Num Classes: ', out_class)
+
+'''
+# Add flipped train dataset
+X_train_flip = X_train[:,:,:,::-1]
+y_train_flip = y_train
+X_train = np.concatenate((X_train,X_train_flip), axis=0)
+y_train = np.concatenate((y_train, y_train_flip), axis=0)
+
+rnd_idx = np.random.permutation(len(X_train))
+X_train = X_train[rnd_idx]
+y_train = y_train[rnd_idx]
+
+print('CIFAR 10 DATASET agumented')
+print('X_train shape ', X_train.shape)
+print('y_train shape ', y_train.shape)
+print('X_test shape ', X_test.shape)
+print('y_test shape ', y_test.shape)
+'''
+
+print('Reshape and scaling data (mean 0, std 1)')
+X_train = X_train.reshape(
+    (len(X_train), X_train.shape[1] * X_train.shape[2] * X_train.shape[3]))  # X_train.shape[3] if coloured
+X_test = X_test.reshape((len(X_test), X_test.shape[1] * X_test.shape[2] * X_test.shape[3]))
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+print('Reshape and apply OneHotEncoder')
 y_train = y_train.reshape(-1, 1)
 y_test = y_test.reshape(-1, 1)
 onehot_encoder = OneHotEncoder(sparse=False)
 y_train = onehot_encoder.fit_transform(y_train)
 y_test = onehot_encoder.fit_transform(y_test)
 
+# Training networks
 print()
+print("Bagging %d ELM classificator\n" % n_estimator)
 # init list of models and prediction
-#model = [None] * n_estimator
-y_train_predicted = []
 y_test_predicted = []
+y_train_predicted = []
 tstart = time.time()
 for i in range(n_estimator):
     print('Estim #%d' % i)
-    model = hpelm.ELM(X_train.shape[1], out_class, classification="wc", batch=batch_size, accelerator="GPU",
-                         precision=prec)
+    model = hpelm.ELM(X_train.shape[1], out_class, classification="c", batch=batch_size, accelerator="GPU",
+                      precision=prec)
     model.add_neurons(neuron_number, random.choice(neuron_type))
     print(str(model))
     t = time.time()
-    model.train(X_train, y_train, 'wc')
+    model.train(X_train, y_train, 'c')
     elapsed_time_train = time.time() - t
     pred_train = model.predict(X_train)
     y_train_predicted.append(pred_train)
@@ -106,7 +142,7 @@ print("Min test-set accuracy:  {0:.4f}".format(np.min(test_accuracies)))
 print("Max test-set accuracy:  {0:.4f}".format(np.max(test_accuracies)))
 
 # building ensemble
-# TODO: hard voting and soft voting or softmax and selector
+# TODO: selector
 ensemble_pred_labels = np.mean(pred_labels, axis=0)
 ensemble_cls_pred = np.argmax(ensemble_pred_labels, axis=1)  # one-hot-reverted
 ensemble_correct = (ensemble_cls_pred == y_test.argmax(1))
@@ -177,6 +213,8 @@ def plot_images(images,  # Images to plot, 2-d array.
 
     assert len(images) == len(cls_true)
 
+    classes = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
     # Create figure with 3x3 sub-plots.
     fig, axes = plt.subplots(3, 3)
 
@@ -193,16 +231,16 @@ def plot_images(images,  # Images to plot, 2-d array.
         # There may not be enough images for all sub-plots.
         if i < len(images):
             # Plot image.
-            ax.imshow(images[i].reshape(img_shape), cmap='binary')
+            ax.imshow(images[i].reshape(img_shape))
 
             # Show true and predicted classes.
             if ensemble_cls_pred is None:
-                xlabel = "True: {0}".format(cls_true[i])
+                xlabel = "True: {0}".format(classes[cls_true[i]])
             else:
                 msg = "True: {0}\nEnsemble: {1}\nBest Net: {2}"
-                xlabel = msg.format(cls_true[i],
-                                    ensemble_cls_pred[i],
-                                    best_cls_pred[i])
+                xlabel = msg.format(classes[cls_true[i]],
+                                    classes[ensemble_cls_pred[i]],
+                                    classes[best_cls_pred[i]])
 
             # Show the classes as the label on the x-axis.
             ax.set_xlabel(xlabel)
@@ -217,8 +255,8 @@ def plot_images(images,  # Images to plot, 2-d array.
 
 
 def plot_images_comparison(idx):
-    plot_images(images=X_test_orig[idx, :],
-                cls_true=y_test.argmax(1)[idx],
+    plot_images(images=test_data[idx, :],
+                cls_true=test_labels[idx],
                 ensemble_cls_pred=ensemble_cls_pred[idx],
                 best_cls_pred=best_net_cls_pred[idx])
 
@@ -238,6 +276,9 @@ def print_labels(labels, idx, num=1):
 
 
 def print_labels_ensemble(idx, **kwargs):
+
+
+
     print_labels(labels=ensemble_pred_labels, idx=idx, **kwargs)
 
 
@@ -251,16 +292,17 @@ def print_labels_all_nets(idx):
 
 
 # We know that MNIST images are 28 pixels in each dimension.
-img_size = 28
+img_size = 32
 
 # Images are stored in one-dimensional arrays of this length.
 img_size_flat = img_size * img_size
 
-# Tuple with height and width of images used to reshape arrays.
-img_shape = (img_size, img_size)
 
 # Number of colour channels for the images: 1 channel for gray-scale.
-num_channels = 1
+num_channels = 3
+
+# Tuple with height and width of images used to reshape arrays.
+img_shape = (img_size, img_size, num_channels)
 
 # Number of classes, one class for each of 10 digits.
 num_classes = 10
