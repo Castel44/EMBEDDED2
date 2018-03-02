@@ -1,4 +1,11 @@
 # Import dataset, from another files, already splitted and shuffled
+# this allows to import files from parent directory
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir)
+from hvass_utils import cifar10
+
 import random
 import time
 
@@ -9,7 +16,23 @@ from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
-from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
+
+### dataset path goes here
+data_path = parentdir + '/cifar10_data/'
+
+cifar10.maybe_download_and_extract(data_path)
+
+# train data
+train_data, train_cls, train_labels = cifar10.load_training_data(data_path)
+
+# load test data
+test_data, cls_test, test_labels = cifar10.load_test_data(data_path)
+
+print("Size of:")
+print("- Training-set:\t\t{}".format(len(train_data)))
+print("- Test-set:\t\t{}".format(len(test_data)))
+
+#from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
 
 
 # Useful functions
@@ -54,7 +77,7 @@ n_estimator = 100
 neuron_number = 8192
 out_class = 10
 CV_folds = 10
-batch_size = neuron_number
+batch_size = 2000
 prec = "single"
 neuron_type = ('tanh', 'sigm')
 
@@ -70,7 +93,7 @@ print('X_train shape ', X_train.shape)
 print('y_train shape ', y_train.shape)
 print('X_test shape ', X_test.shape)
 print('y_test shape ', y_test.shape)
-out_class = len(np.unique(y_test))
+out_class = len((y_test[1]))
 print('Num Classes: ', out_class)
 
 '''
@@ -100,12 +123,14 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
+'''
 print('Reshape and apply OneHotEncoder')
 y_train = y_train.reshape(-1, 1)
 y_test = y_test.reshape(-1, 1)
 onehot_encoder = OneHotEncoder(sparse=False)
 y_train = onehot_encoder.fit_transform(y_train)
 y_test = onehot_encoder.fit_transform(y_test)
+'''
 
 # Training networks
 print()
