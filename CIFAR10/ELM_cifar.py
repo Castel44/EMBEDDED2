@@ -8,6 +8,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
 from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
+import CIFAR10.augmented_data as aug
 
 X_train = train_data.astype('float32')
 y_train = train_labels.astype('float32')
@@ -17,6 +18,10 @@ y_test = test_labels.astype('float32')
 # Convert data in greyscale
 # X_train = rgb2gray(X_train)
 # X_test = rgb2gray(X_test)
+
+# Crop data in 24x24
+# X_train = aug.crop(X_train, rand=True)
+# X_test = aug.crop(X_test, rand= False)
 
 print('CIFAR 10 DATASET')
 print('X_train shape ', X_train.shape)
@@ -32,6 +37,9 @@ X_train_flip = X_train[:,:,:,::-1]
 y_train_flip = y_train
 X_train = np.concatenate((X_train,X_train_flip), axis=0)
 y_train = np.concatenate((y_train, y_train_flip), axis=0)
+'''
+
+X_train, y_train = aug.augment_data(X_train, y_train)
 
 rnd_idx = np.random.permutation(len(X_train))
 X_train = X_train[rnd_idx]
@@ -42,7 +50,7 @@ print('X_train shape ', X_train.shape)
 print('y_train shape ', y_train.shape)
 print('X_test shape ', X_test.shape)
 print('y_test shape ', y_test.shape)
-'''
+
 
 print('Reshape and scaling data (mean 0, std 1)')
 X_train = X_train.reshape(
@@ -67,15 +75,13 @@ np.random.seed(42)
 '''
 
 np.set_printoptions(precision=2)
-neuron_number = 4096
-CV_folds = 10
+neuron_number = 8000
+# CV_folds = 10
 prec = "single"
 
 print('\nELM simple')
-elm = hpelm.ELM(X_train.shape[1], out_class, classification="c", accelerator="GPU", batch=256, precision='single')
+elm = hpelm.ELM(X_train.shape[1], out_class, classification="c", accelerator="GPU", precision='single')
 elm.add_neurons(neuron_number, 'sigm')
-# elm.add_neurons(X_train.shape[1],'lin')
-# elm.add_neurons(500,'lin')
 print(str(elm))
 # Training model
 t = time.time()
