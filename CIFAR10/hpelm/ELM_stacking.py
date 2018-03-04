@@ -1,19 +1,39 @@
 import time
 
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir)
+from hvass_utils import cifar10
+
+
 import hpelm
 import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
-from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
+### dataset path goes here
+data_path = parentdir + '/cifar10_data/'
+
+cifar10.maybe_download_and_extract(data_path)
+
+# train data
+train_data, train_cls, train_labels = cifar10.load_training_data(data_path)
+
+# load test data
+test_data, cls_test, test_labels = cifar10.load_test_data(data_path)
+
+print("Size of:")
+print("- Training-set:\t\t{}".format(len(train_data)))
+print("- Test-set:\t\t{}".format(len(test_data)))
 
 
 def plain_ELM(name, training_instances, training_labels, test_instances, test_labels,
               hidden_layer_size):  # TODO more hyperpar
 
     model = hpelm.ELM(training_instances.shape[1], training_labels.shape[1], accelerator='GPU', classification='c',
-                      batch=256)
+                      batch=2000, precision='single')
     model.add_neurons(hidden_layer_size, 'sigm')
     #    model.add_neurons(training_instances.shape[1], 'lin')
     print(str(model))
@@ -72,16 +92,18 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
+'''
 print('Reshape and apply OneHotEncoder')
 y_train = y_train.reshape(-1, 1)
 y_test = y_test.reshape(-1, 1)
 onehot_encoder = OneHotEncoder(sparse=False)
 y_train = onehot_encoder.fit_transform(y_train)
 y_test = onehot_encoder.fit_transform(y_test)
+'''
 
 # Hyperparameters
-hidden_layer_size = 1024
-n_pred = 3
+hidden_layer_size = 8192
+n_pred = 100
 n_layers = 1
 
 stack_train_inputs = [X_train, y_train]
@@ -95,7 +117,7 @@ for stacking_layer in range(n_layers):
                                                 stack_train_inputs[1],
                                                 stack_test_inputs[0],
                                                 stack_test_inputs[1],
-                                                hidden_layer_size
+                                                int(hidden_layer_size/(stacking_layer+1))
                                                 )
         if predictor == 0:
             stack_train_inputs_layer = np.array(y_train_pred)
@@ -112,5 +134,5 @@ for stacking_layer in range(n_layers):
                                         stack_train_inputs[1],
                                         stack_test_inputs[0],
                                         stack_test_inputs[1],
-                                        hidden_layer_size
+                                        int(hidden_layer_size/(n_layers+1))
                                         )
