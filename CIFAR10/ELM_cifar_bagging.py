@@ -49,9 +49,9 @@ def ensemble_prediction():
 np.set_printoptions(precision=2)
 # np.random.seed(42)
 
-n_estimator = 100
+n_estimator = 10
 
-neuron_number = 8192
+neuron_number = 1024
 out_class = 10
 CV_folds = 10
 batch_size = neuron_number
