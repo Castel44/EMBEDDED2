@@ -1,20 +1,20 @@
-import random
 import time
-
-import h5py
 import hpelm
 import numpy as np
-from keras.preprocessing.image import ImageDataGenerator
+import random
+import h5py
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
-
 from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
+from keras.preprocessing.image import ImageDataGenerator
+from CIFAR10.augmented_data import crop
 
 print("Loading Dataset: CIFAR10")
 X_train = train_data.astype('float32')
 y_train = train_labels.astype('float32')
 X_test = test_data.astype('float32')
 y_test = test_labels.astype('float32')
+
 
 # Convert data in greyscale
 # X_train = rgb2gray(X_train)
@@ -27,6 +27,7 @@ print('X_test shape ', X_test.shape)
 print('y_test shape ', y_test.shape)
 out_class = len(np.unique(y_test))
 print('Num Classes: ', out_class)
+
 
 #######################################################################################################################
 # Data Preprocess and augmention
@@ -63,7 +64,7 @@ gen = ImageDataGenerator(
 # AUG Hyperparameters
 img_batches = 2000
 epoch = 6
-t_print = 10  # time to display eta
+t_print = 10  #time to display eta
 
 X_train_aug = X_train
 y_train_aug = y_train
@@ -86,6 +87,7 @@ for X_batch, y_batch in gen.flow(X_train, y_train, batch_size=img_batches):
     batches += 1
     if batches >= num_batches:
         break
+
 
 print('CIFAR 10 DATASET agumented')
 print('X_train shape ', X_train_aug.shape)
@@ -203,3 +205,4 @@ ensemble_acc = (ensemble_cls_pred == test_labels).mean()
 best_net_acc = acc_test[best_net]
 print("\nEnsemble accuracy: ", ensemble_acc * 100)
 print("Best net accuracy: ", acc_test[best_net] * 100)
+
