@@ -28,7 +28,7 @@ import tensorflow as tf
 
 
 def augment_data(dataset, dataset_labels, augementation_factor=1, use_random_rotation=True, use_random_shear=True,
-                 use_random_shift=True, use_random_zoom=True):
+                 use_random_shift=True, use_random_zoom=False):
     augmented_image = []
     augmented_image_labels = []
 
