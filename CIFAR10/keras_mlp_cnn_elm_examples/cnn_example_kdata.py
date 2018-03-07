@@ -1,7 +1,11 @@
-
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir)
+from hvass_utils import cifar10
 
 import keras
-from hvass_utils import cifar10
+from keras.datasets import cifar10
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten, InputLayer
@@ -9,30 +13,26 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras.callbacks import TensorBoard
 from sklearn.model_selection import train_test_split
 import os
-data_path = os.getcwd() + '/CNN_model_data'
+
+log_dir = os.getcwd() + '/CNN_cifar10_kdata'
+data_path = parentdir + '/cifar10_data/'
+
 
 batch_size = 32
 num_classes = 10
 epochs = 100
-data_augmentation = False
+data_augmentation = True
 
-cifar10.maybe_download_and_extract()
+(images_train, y_train), (images_test, labels_test) = cifar10.load_data()
+print('x_train shape:', images_train.shape)
+print(images_train.shape[0], 'train samples')
+print(images_test.shape[0], 'test samples')
 
+# Convert class vectors to binary class matrices.
+y_train = keras.utils.to_categorical(y_train, num_classes)
+y_test = keras.utils.to_categorical(labels_test, num_classes)
 
-images_train, cls_train, labels_train = cifar10.load_training_data()
-
-# load test data
-images_test, cls_test, labels_test = cifar10.load_test_data()
-
-# labels_train already in categorical matrix form
-
-# if validation set is required
-images_train, images_val, labels_train,labels_val = train_test_split(images_train,labels_train, test_size=0.2)
-
-print("Size of:")
-print("- Training-set:\t\t{}".format(len(images_train)))
-print("- Test-set:\t\t{}".format(len(images_test)))
-print("-Validation-set:\t\t%d" % len(images_val))
+images_train, images_val, labels_train,labels_val = train_test_split(images_train,y_train, test_size=0.2)
 
 model = Sequential()
 model.add(InputLayer(input_shape=(32,32,3)))
@@ -59,7 +59,7 @@ model.add(Dense(num_classes))
 model.add(Activation('softmax'))
 
 # initiate RMSprop optimizer
-opt = keras.optimizers.rmsprop(lr=0.0001, decay=1e-6)
+opt = keras.optimizers.nadam(lr=0.001, schedule_decay=1e-4)
 
 # Let's train the model using RMSprop
 model.compile(loss='categorical_crossentropy',
@@ -77,8 +77,8 @@ x_val /= 255
 
 # early stopping
 early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='auto')
-ckpt= keras.callbacks.ModelCheckpoint(data_path+'/saved_model_checkpoint', monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
-tensorboard = TensorBoard(log_dir=data_path + "/tensorboard/run1", histogram_freq=1, write_graph=True, write_images=False)
+ckpt= keras.callbacks.ModelCheckpoint(log_dir+'/saved_model_checkpoint', monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
+tensorboard = TensorBoard(log_dir=log_dir + "/tensorboard/run1", histogram_freq=1, write_graph=True, write_images=False)
 
 # super simple learning rate schedule
 def step_decay(epoch):
@@ -134,7 +134,7 @@ scores = model.evaluate(x_test, labels_test, verbose=1)
 print('Test loss:', scores[0])
 print('Test accuracy:', scores[1])
 
-del model # purge model from memory 
+del model # purge model from memory
 
 
-print('tensorboard --logdir=%s' % data_path + "/tensorboard/run1")
+print('tensorboard --logdir=%s' % log_dir + "/tensorboard/run1")
