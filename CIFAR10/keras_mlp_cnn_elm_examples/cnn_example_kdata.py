@@ -98,7 +98,7 @@ if not data_augmentation:
     model.fit(x_train, labels_train,
               batch_size=batch_size,
               epochs=epochs,
-              validation_data=(images_val, labels_val),
+              validation_data=(x_val, labels_val),
               shuffle=True, callbacks=[tensorboard,ckpt,early_stopping,change_lr])
 else:
     print('Using real-time data augmentation.')
@@ -123,7 +123,7 @@ else:
     model.fit_generator(datagen.flow(x_train, labels_train,
                                      batch_size=batch_size),
                         epochs=epochs,
-                        validation_data=(images_val, labels_val),
+                        validation_data=(x_val, labels_val),
                         workers=4, callbacks=[tensorboard,ckpt,early_stopping,change_lr])
 
 
