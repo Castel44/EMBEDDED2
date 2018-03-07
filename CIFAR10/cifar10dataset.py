@@ -5,7 +5,6 @@
 # labels -- 10000, the range 0 - 9 [airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck]
 
 import pickle
-
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -15,7 +14,6 @@ def unpickle(file):
     with open(file, 'rb') as f:
         data = pickle.load(f, encoding='latin-1')
         return data
-
 
 def load_cifar10_data(data_dir):
     '''Return train_data, train_labels, test_data, test_labels
@@ -45,11 +43,10 @@ def load_cifar10_data(data_dir):
 
     return train_data, train_labels, test_data, test_labels
 
-
 def plot_example():
     classes = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
     num_classes = len(classes)
-    samples_per_class = 7
+    samples_per_class = 10
     for label_ind, cls in enumerate(classes):
         idxs = np.where(train_labels == label_ind)[0]
         idxs = np.random.choice(idxs, samples_per_class, replace=False)
@@ -63,8 +60,18 @@ def plot_example():
     plt.show()
 
 
-data_dir = "F:\\Documenti 2\\University\\Magistrale\\Progettazione Sistemi Embedded\\Progetto EMBEDDED\\Datasets\\cifar-10-batches-py"
+# From Hvaas
+def plot_image(image):
+    plt.imshow(image.reshape(img_shape),
+               interpolation='nearest',
+               cmap='binary')
+    plt.show()
 
+
+
+
+
+data_dir = "F:\\Documenti 2\\University\\Magistrale\\Progettazione Sistemi Embedded\\Progetto EMBEDDED\\Datasets\\cifar-10-batches-py"
 train_data, train_labels, test_data, test_labels = load_cifar10_data(data_dir)
 
 
@@ -78,7 +85,7 @@ def main():
     print(test_labels.shape)
 
     # In order to check where the data shows an image correctly
-    plt.imshow(train_data[2])
+    plt.imshow(train_data[2], interpolation='nearest')
     plt.show()
 
     plot_example()

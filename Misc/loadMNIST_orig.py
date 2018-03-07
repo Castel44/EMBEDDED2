@@ -16,7 +16,9 @@ from sklearn.ensemble import RandomForestClassifier
 mnist = fetch_mldata('MNIST original')
 print(mnist)
 X, y = mnist["data"], mnist["target"]
-print('X shape \n',X.shape, '\n Y shape \n', y.shape)
+X, y = X.astype('float32'), y.astype('float32')
+
+print('X shape: ', X.shape, X.dtype, '\nY shape: ', y.shape, y.dtype)
 
 #Create test and training set. MNIST dataset already splitted up
 X_train, X_test, y_train, y_test = X[:60000], X[60000:], y[:60000], y[60000:]
@@ -49,13 +51,15 @@ plt.show()
 '''
 
 #Shuffle the data
-np.random.seed(42)
+# np.random.seed(42)
 rnd_idx = np.random.permutation(len(X_train))
 X_train = X_train[rnd_idx]
 y_train = y_train[rnd_idx]
 
+'''
 #Scaling data (mean 0, variance 1)
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
+'''
