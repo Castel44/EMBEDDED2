@@ -76,9 +76,9 @@ X_test = test_data.astype('float32')
 y_test = test_labels.astype('float32')
 
 print('Reshape and scaling data (mean 0, std 1)')
-X_train = X_train.reshape(
-    (len(X_train), X_train.shape[1] * X_train.shape[2] * X_train.shape[3]))  # X_train.shape[3] if coloured
+X_train = X_train.reshape((len(X_train), X_train.shape[1] * X_train.shape[2] * X_train.shape[3]))
 X_test = X_test.reshape((len(X_test), X_test.shape[1] * X_test.shape[2] * X_test.shape[3]))
+
 
 print('DATASET')
 print('X_train shape ', X_train.shape)
@@ -103,7 +103,7 @@ y_test = onehot_encoder.fit_transform(y_test)
 
 # Hyperparameters
 hidden_layer_size = 8192
-n_pred = 100
+n_pred = 10
 n_layers = 1
 
 stack_train_inputs = [X_train, y_train]
