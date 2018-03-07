@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+
 import os
 import matplotlib
 import matplotlib.pyplot as plt
@@ -90,7 +91,7 @@ def restore_model_params(model_params):
     feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
     tf.get_default_session().run(assign_ops, feed_dict=feed_dict)
 
-n_epochs = 1000
+n_epochs = 10
 batch_size = 50
 
 best_loss_val = np.infty

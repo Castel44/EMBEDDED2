@@ -1,33 +1,46 @@
-import keras
+import os,sys,inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0,parentdir)
 from hvass_utils import cifar10
+
+
+import keras
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, InputLayer, Flatten
 from keras.callbacks import TensorBoard
 import itertools
-import os
+import numpy as np
+
 import tensorflow as tf
+from lr_scheduler import lr_sgdr,lr_finder
 
 run_var = 0
 
-data_path = os.getcwd() + '/mlp_vs_elm_cifar10'
+log_dir = os.getcwd() + '/mlp_vs_elm_cifar10'
+data_path = parentdir + '/cifar10_data/'
 
-batch_size = 32
+batch_size = 64
 num_classes = 10
-epochs = 1
+epochs = 100
 data_augmentation = False
 
 ##### HYPERPARAMS ##############
 
-hyperpar = {'mlp': [False,True],  'drop' : [0 , 0.25] }
+nadam = keras.optimizers.nadam(lr=0.001, schedule_decay=0.001)
+sgdr = keras.optimizers.nadam(lr=0.001) #keras.optimizers.SGD(lr=0.001,nesterov=True)
+adam = keras.optimizers.adam(lr=0.001)
 
-cifar10.maybe_download_and_extract()
+hyperpar = {'opt' : [nadam]}
+
+cifar10.maybe_download_and_extract(data_path)
 
 # train data
-images_train, cls_train, labels_train = cifar10.load_training_data()
+images_train, cls_train, labels_train = cifar10.load_training_data(data_path)
 
 # load test data
-images_test, cls_test, labels_test = cifar10.load_test_data()
+images_test, cls_test, labels_test = cifar10.load_test_data(data_path)
 
 print("Size of:")
 print("- Training-set:\t\t{}".format(len(images_train)))
@@ -42,21 +55,22 @@ x_test /= 255
 
 
 def createntrain(hyperpar,save_dir):
-    mlp = hyperpar['mlp']
-    dropout = hyperpar['drop']
 
     model = Sequential()
     model.add(InputLayer(input_shape=(32, 32, 3)))
     model.add(Flatten())
-    model.add(Dense(100, trainable=mlp))
-    model.add(Activation('tanh'))
-    model.add(Dropout(dropout))
+    model.add(Dense(4000))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(4000))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
     model.add(Dense(num_classes))
     model.add(Activation('softmax'))
 
     print(model.summary())
 
-    opt = keras.optimizers.Adam(lr=0.001,decay=0.0001)
+    opt = hyperpar['opt']
 
     model.compile(loss='categorical_crossentropy',
                 optimizer=opt,
@@ -68,18 +82,34 @@ def createntrain(hyperpar,save_dir):
                                            verbose=2,
                                            save_best_only=True, save_weights_only=False, mode='auto', period=1)
 
-    early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1, mode='auto')
+    #early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1, mode='auto')
     tensorboard = TensorBoard(log_dir=save_dir, histogram_freq=1,
                               write_graph=True, write_images=False)
 
-    model.fit(x_train, labels_train,
+
+    if hyperpar['opt'] == sgdr:
+
+        lr_sched = lr_sgdr(eta_min = 0.0008, eta_max= 0.0018, Ti=5*(len(x_train)//batch_size), Tmult=1, eta_decay=1 )
+
+        model.fit(x_train, labels_train,
             batch_size=batch_size,
             epochs=epochs,
             validation_data=(x_test, labels_test),
-            shuffle=True, callbacks=[tensorboard, ckpt,early_stopping])
+            shuffle=True, callbacks=[tensorboard, ckpt,lr_sched])
 
-    print(model.summary())
+    else:
+
+        model.fit(x_train, labels_train,
+                  batch_size=batch_size,
+                  epochs=epochs,
+                  validation_data=(x_test, labels_test),
+                  shuffle=True, callbacks=[tensorboard, ckpt])
+
+
     return model
+
+
+
 
 
 def main():
@@ -97,16 +127,17 @@ def main():
 
         print(comb)
 
-        save_dir = data_path + '/%s' %str(list(comb.items()))
+
+        save_dir = log_dir + '/run:%s' % run_var
 
         model = createntrain(comb,save_dir)
         del model
         keras.backend.clear_session() # required otherwise keras will raise a weird error
 
+
         print("RUN number %d COMPLETED\n\n" % run_var)
-        print('tensorboard --logdir=%s' % save_dir)
-
-
+        print('#'*60)
+    print('tensorboard --logdir=%s' % log_dir)
 
 
 
@@ -114,12 +145,10 @@ if __name__ == '__main__':
         main()
 
 
-
-
-
+'''
 ### BONUS #### DEEP MLP
 
-save_dir = data_path + '/deep_mlp'
+save_dir = log_dir + '/deep_mlp'
 
 ########## DEEP MLP MODEL
 mlp = Sequential()
@@ -138,7 +167,7 @@ mlp.add(Activation('softmax'))
 
 print(mlp.summary())
 
-opt = keras.optimizers.nadam(lr=0.001, schedule_decay=0.004)
+opt = keras.optimizers.nadam(lr=0.001, schedule_decay=0.006)
 
 mlp.compile(loss='categorical_crossentropy',
               optimizer=opt,
@@ -172,4 +201,5 @@ print('Test accuracy:', scores[1])
 del mlp # purge model from memory
 
 
-print('tensorboard --logdir=%s' % data_path)
+print('tensorboard --logdir=%s' % log_dir)
+'''
