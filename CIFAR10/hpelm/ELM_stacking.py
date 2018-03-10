@@ -33,7 +33,7 @@ def plain_ELM(name, training_instances, training_labels, test_instances, test_la
               hidden_layer_size):  # TODO more hyperpar
 
     model = hpelm.ELM(training_instances.shape[1], training_labels.shape[1], accelerator='GPU', classification='c',
-                      batch=2000, precision='single')
+                      batch=1000, precision='single')
     model.add_neurons(hidden_layer_size, 'sigm')
     #    model.add_neurons(training_instances.shape[1], 'lin')
     print(str(model))
@@ -103,21 +103,24 @@ y_test = onehot_encoder.fit_transform(y_test)
 
 # Hyperparameters
 hidden_layer_size = 8192
-n_pred = 10
-n_layers = 1
+
+
+layers_size = [8192,1024,256]
+n_pred = [10,5]
+n_layers = 2
 
 stack_train_inputs = [X_train, y_train]
 stack_test_inputs = [X_test, y_test]
 
 for stacking_layer in range(n_layers):
-    for predictor in range(n_pred):
+    for predictor in range(n_pred[stacking_layer]):
         name = 'ELM_layer:%d_n:%d' % (stacking_layer, predictor)
         [y_train_pred, y_test_pred] = plain_ELM(name,
                                                 stack_train_inputs[0],
                                                 stack_train_inputs[1],
                                                 stack_test_inputs[0],
                                                 stack_test_inputs[1],
-                                                int(hidden_layer_size/(stacking_layer+1))
+                                                layers_size[stacking_layer]
                                                 )
         if predictor == 0:
             stack_train_inputs_layer = np.array(y_train_pred)
@@ -134,5 +137,5 @@ for stacking_layer in range(n_layers):
                                         stack_train_inputs[1],
                                         stack_test_inputs[0],
                                         stack_test_inputs[1],
-                                        int(hidden_layer_size/(n_layers+1))
+                                        layers_size[stacking_layer+1]
                                         )
