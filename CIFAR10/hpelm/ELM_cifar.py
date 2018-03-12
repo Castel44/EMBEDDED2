@@ -37,7 +37,7 @@ X_train_flip = X_train[:,:,:,::-1]
 y_train_flip = y_train
 X_train = np.concatenate((X_train,X_train_flip), axis=0)
 y_train = np.concatenate((y_train, y_train_flip), axis=0)
-'''
+
 
 X_train, y_train = aug.augment_data(X_train, y_train)
 
@@ -50,7 +50,7 @@ print('X_train shape ', X_train.shape)
 print('y_train shape ', y_train.shape)
 print('X_test shape ', X_test.shape)
 print('y_test shape ', y_test.shape)
-
+'''
 
 print('Reshape and scaling data (mean 0, std 1)')
 X_train = X_train.reshape(

@@ -3,7 +3,7 @@ from sklearn.datasets import fetch_mldata
 import hpelm
 import time
 
-np.random.seed(42)
+# np.random.seed(42)
 
 mnist = fetch_mldata('MNIST original')
 print(mnist)
@@ -22,7 +22,6 @@ y_train = y_train[rnd_idx]
 
 # Scaling data (mean 0, variance 1)
 from sklearn.preprocessing import StandardScaler
-
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
@@ -47,14 +46,14 @@ hpelm.make_hdf5(y_test, "hy_test.h5")
 # print(hpelm.normalize_hdf5('hX_test.h5')
 
 np.set_printoptions(precision=2)
-neuron_number = 30000
+neuron_number = 15000
 out_class = 10
 CV_folds = 10
 
 # Problems when calling multiple files with same names Error: ValueError: The file 'hy_train_pred.h5' is already opened.  Please close it before reopening in write mode.
 # Building model
 print('\nBuilding model: HPELM with ')
-model = hpelm.HPELM(X_train.shape[1], out_class, classification="c", batch=100, accelerator="GPU", precision='single',
+model = hpelm.HPELM(X_train.shape[1], out_class, classification="c", batch=2048, accelerator="GPU", precision='single',
                     tprint=5)
 model.add_neurons(neuron_number, 'sigm')
 print(str(model))
