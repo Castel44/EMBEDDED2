@@ -112,11 +112,11 @@ num_layer = 2
 AE_neurons = 700
 for i in range(num_layer):
     if i == 0:
-        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** 1, orth_init=True, X_test=X_test)
+        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** 1, orth_init=False, X_test=X_test)
         H_train = activation_gpu(X_train, B_AE, 'sigm')
         H_test = activation_gpu(X_test, B_AE, 'sigm')
     else:
-        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -3, orth_init=True, X_test=H_test)
+        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -3, orth_init=False, X_test=H_test)
         H_train = activation_gpu(H_train, B_AE, 'lin')
         H_test = activation_gpu(H_test, B_AE, 'lin')
 
