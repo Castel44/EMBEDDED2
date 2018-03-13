@@ -112,18 +112,24 @@ num_layer = 2
 AE_neurons = 700
 for i in range(num_layer):
     if i == 0:
-        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** 1, orth_init=False, X_test=X_test)
+        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** -1, orth_init=False, X_test=X_test)
         H_train = activation_gpu(X_train, B_AE, 'sigm')
         H_test = activation_gpu(X_test, B_AE, 'sigm')
     else:
-        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -3, orth_init=False, X_test=H_test)
+        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -4, orth_init=False, X_test=H_test)
         H_train = activation_gpu(H_train, B_AE, 'lin')
         H_test = activation_gpu(H_test, B_AE, 'lin')
+
+
+#####################################################################################################################
+# Random perturbate H_train
+sigma = H_train.std() / 20
+Noise = sigma * np.random.randn(H_train.shape[0], H_train.shape[1])
+H_train = np.add(H_train, Noise)
 
 postscaler = StandardScaler()
 H_train = postscaler.fit_transform(H_train)
 H_test = postscaler.transform(H_test)
-#####################################################################################################################
 
 print("\nBuilding hdf5 files")
 # Convert data in HDF5 files
