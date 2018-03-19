@@ -78,10 +78,12 @@ with tf.Session() as sess:
         [_, _, s] = sess.run([HH_op, HT_op, summ], feed_dict={x: x_batch, y: y_batch})
         writer.add_summary(s, i)
 
+    print('B: ', B.eval())
     acc_train = accuracy.eval(feed_dict={x: x_train, y: y_train})
+    print('\nB: ', B.eval())
     acc_test = accuracy.eval(feed_dict={x: x_test, y: y_test})
 
-print(acc_train)
-print(acc_test)
+print('Train accuracy: ', acc_train)
+print('Test accuracy: ', acc_test)
 
 os.system('tensorboard --logdir=%s' % LOGDIR)
