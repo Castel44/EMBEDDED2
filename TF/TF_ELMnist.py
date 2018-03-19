@@ -8,6 +8,7 @@ from keras.datasets import mnist
 
 
 # TODO: fix correct histogram and variable TensorBoard
+# TODO: better hypar management, do dict or smth
 def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
     tf.reset_default_graph()
     sess = tf.Session()
@@ -98,13 +99,20 @@ norm = (4, 0, -4)
 train_acc = []
 test_acc = []
 run = 0
-run_num = list(itertools.product(neuron_number, norm)).__len__()
+run_comb = list(itertools.product(neuron_number, norm))
 for v in itertools.product(neuron_number, norm):
-    print('Starting run %d/%d' % (run + 1, run_num))
+    print('Starting run %d/%d' % (run + 1, run_comb.__len__()))
     train, test = ELM_classificator(28, 10, v[0], batch_size, v[1])
     train_acc.append(train)
     test_acc.append(test)
     run += 1
 
+print('Done training!')
+print('Run `tensorboard --logdir=%s` to see the results.' % LOGDIR)
+# os.system('tensorboard --logdir=%s' % LOGDIR)
 
-os.system('tensorboard --logdir=%s' % LOGDIR)
+# Searching for best hypar combination
+best_net = np.argmax(test_acc)
+print('Best net with hypepar:')
+print('  -neuron number: ', run_comb[best_net][0])
+print('  -norm: 10 **', run_comb[best_net][1])
