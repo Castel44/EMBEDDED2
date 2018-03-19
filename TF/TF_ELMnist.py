@@ -41,14 +41,16 @@ with tf.name_scope('hidd'):
     tf.summary.histogram("activations", H)
 
 with tf.name_scope('train'):
-    # ERROR HH and HT must save result of last iteration
-    HH = tf.Variable(tf.zeros(n_neuron), trainable=False)
-    HT = tf.Variable(tf.zeros([n_neuron, 10]), trainable=False)
     I = tf.eye(n_neuron, dtype=tf.float32)
-    HH = tf.add(HH, tf.add(tf.matmul(H, H, transpose_a=True), tf.div(I, norm)))
-    HT = tf.add(HT, tf.matmul(H, y, transpose_a=True))
+    HH = tf.Variable(tf.add(tf.zeros(n_neuron), tf.div(I, norm)), name='HH')
+    HT = tf.Variable(tf.zeros([n_neuron, 10]), name='HT')
+    HH_op = tf.assign(HH, tf.add(HH, tf.matmul(H, H, transpose_a=True)))
+    HT_op = tf.assign(HT, tf.add(HT, tf.matmul(H, y, transpose_a=True)))
+    # Does need assign for B?
     B = tf.matmul(tf.matrix_inverse(HH), HT)
     tf.summary.histogram("B", B)
+    tf.summary.histogram("HH", HH)
+    tf.summary.histogram("HT", HT)
 
 with tf.name_scope('output_layer'):
     y_proba = tf.matmul(H, B)
@@ -57,6 +59,7 @@ with tf.name_scope("accuracy"):
     correct_prediction = tf.equal(tf.argmax(y_proba, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     tf.summary.scalar("accuracy", accuracy)
+
 
 with tf.Session() as sess:
     tf.global_variables_initializer().run()
@@ -69,9 +72,11 @@ with tf.Session() as sess:
     nb = x_train.shape[0] // batch_size
 
     for i in range(nb):
+        print('Processing batch %d/%d' % (i + 1, nb))
         x_batch = x_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
         y_batch = y_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
-        sess.run([HH, HT], feed_dict={x: x_batch, y: y_batch})
+        [_, _, s] = sess.run([HH_op, HT_op, summ], feed_dict={x: x_batch, y: y_batch})
+        writer.add_summary(s, i)
 
     acc_train = accuracy.eval(feed_dict={x: x_train, y: y_train})
     acc_test = accuracy.eval(feed_dict={x: x_test, y: y_test})
@@ -79,4 +84,4 @@ with tf.Session() as sess:
 print(acc_train)
 print(acc_test)
 
-# os.system('tensorboard --logdir=%s' % LOGDIR)
+os.system('tensorboard --logdir=%s' % LOGDIR)
