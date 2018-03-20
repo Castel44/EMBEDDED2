@@ -28,19 +28,19 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
     sess = tf.Session()
 
     with tf.name_scope('inputs'):
-        x = tf.placeholder(tf.float32, shape=[None, size_in * size_in], name="x")
+        x = tf.placeholder(tf.float32, shape=[None, size_in], name="x")
         y = tf.placeholder(tf.float32, shape=[None, size_out], name="labels")
 
     with tf.name_scope('hidden_layer'):
-        w = tf.Variable(tf.random_normal(shape=[size_in * size_in, n_neuron], stddev=1), trainable=False)
-        b = tf.Variable(tf.random_normal(shape=[n_neuron], stddev=1), trainable=False)
+        w = tf.Variable(tf.random_normal(shape=[size_in, n_neuron], stddev=1, dtype=tf.float32), trainable=False,
+                        name='w')
+        b = tf.Variable(tf.random_normal(shape=[n_neuron], stddev=1, dtype=tf.float32), trainable=False, name='b')
         H = tf.sigmoid(tf.matmul(x, w) + b)  # H idden reprs
 
     with tf.name_scope('train'):
-        I = tf.eye(n_neuron, dtype=tf.float32)
-        B = tf.Variable(tf.zeros([n_neuron, size_out]), name='B')
-        HH = tf.Variable(tf.add(tf.zeros(n_neuron), tf.div(I, 10 ** norm)), name='HH')
-        HT = tf.Variable(tf.zeros([n_neuron, size_out]), name='HT')
+        B = tf.Variable(tf.zeros([n_neuron, size_out], dtype=tf.float32), name='B')
+        HH = tf.Variable(tf.multiply(tf.eye(n_neuron, dtype=tf.float32), 10 ** norm), name='HH')
+        HT = tf.Variable(tf.zeros([n_neuron, size_out], dtype=tf.float32), name='HT')
         HH_HT_op = tf.group(
             HH.assign_add(tf.matmul(H, H, transpose_a=True)),
             HT.assign_add(tf.matmul(H, y, transpose_a=True))
@@ -55,6 +55,7 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     sess.run(tf.global_variables_initializer())
+    # saver = tf.train.Saver()
     hparm = 'n_%d,norm_%d' % (n_neuron, norm)
     writer = tf.summary.FileWriter(LOGDIR + hparm)
     writer.add_graph(sess.graph)
@@ -67,7 +68,7 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
         x_batch = x_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
         y_batch = y_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
         sess.run(HH_HT_op, feed_dict={x: x_batch, y: y_batch})
-    # sess.run(B_op)
+    sess.run(B_op)
     print('Training done in: ', time.time() - t0)
     acc_train = accuracy.eval(feed_dict={x: x_train, y: y_train}, session=sess)
     print('Train accuracy: ', acc_train)
@@ -97,10 +98,9 @@ x_test = x_test.reshape(-1, 28 * 28)
 print('x_train shape: ', x_train.shape)
 # Dataset not normalized
 
-
 # HYPEPARAMETERS
 batch_size = 5000
-neuron_number = (5000,)
+neuron_number = (15000,)
 norm = (3,)
 
 train_acc = []
@@ -109,7 +109,7 @@ run = 0
 run_comb = list(itertools.product(neuron_number, norm))
 for v in itertools.product(neuron_number, norm):
     print('Starting run %d/%d' % (run + 1, run_comb.__len__()))
-    train, test = ELM_classificator(28, 10, v[0], batch_size, v[1])
+    train, test = ELM_classificator(x_train.shape[1], 10, v[0], batch_size, v[1])
     train_acc.append(train)
     test_acc.append(test)
     run += 1
