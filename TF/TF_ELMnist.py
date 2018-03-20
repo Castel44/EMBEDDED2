@@ -7,6 +7,19 @@ import keras
 from keras.datasets import mnist
 
 
+def pinv(A, b, reltol=1e-6):
+    # Compute the SVD of the input matrix A
+    s, u, v = tf.svd(A)
+
+    # Invert s, clear entries lower than reltol*s[0].
+    atol = tf.reduce_max(s) * reltol
+    s = tf.boolean_mask(s, s > atol)
+    s_inv = tf.diag(tf.concat([1. / s, tf.zeros([tf.size(b) - tf.size(s)])], 0))
+
+    # Compute v * s_inv * u_t * b from the left to avoid forming large intermediate matrices.
+    return tf.matmul(v, tf.matmul(s_inv, tf.matmul(u, tf.reshape(b, [-1, 1]), transpose_a=True)))
+
+
 # TODO: make predict in batch_way
 # TODO: fix correct histogram and variable TensorBoard
 # TODO: better hypar management, do dict or smth
@@ -25,11 +38,14 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
 
     with tf.name_scope('train'):
         I = tf.eye(n_neuron, dtype=tf.float32)
+        B = tf.Variable(tf.zeros([n_neuron, size_out]), name='B')
         HH = tf.Variable(tf.add(tf.zeros(n_neuron), tf.div(I, 10 ** norm)), name='HH')
         HT = tf.Variable(tf.zeros([n_neuron, size_out]), name='HT')
-        HH_op = tf.assign(HH, tf.add(HH, tf.matmul(H, H, transpose_a=True)))
-        HT_op = tf.assign(HT, tf.add(HT, tf.matmul(H, y, transpose_a=True)))
-        B = tf.matmul(tf.matrix_inverse(HH), HT)
+        HH_HT_op = tf.group(
+            HH.assign_add(tf.matmul(H, H, transpose_a=True)),
+            HT.assign_add(tf.matmul(H, y, transpose_a=True))
+        )
+        B_op = B.assign(tf.matmul(tf.matrix_inverse(HH), HT))
 
     with tf.name_scope('output_layer'):
         y_proba = tf.matmul(H, B)
@@ -50,8 +66,8 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
         print('Processing batch %d/%d' % (i + 1, nb))
         x_batch = x_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
         y_batch = y_train[i * batch_size:((i + 1) * batch_size)].astype('float32')
-        sess.run([HH_op, HT_op], feed_dict={x: x_batch, y: y_batch})
-
+        sess.run(HH_HT_op, feed_dict={x: x_batch, y: y_batch})
+    # sess.run(B_op)
     print('Training done in: ', time.time() - t0)
     acc_train = accuracy.eval(feed_dict={x: x_train, y: y_train}, session=sess)
     print('Train accuracy: ', acc_train)
@@ -84,7 +100,7 @@ print('x_train shape: ', x_train.shape)
 
 # HYPEPARAMETERS
 batch_size = 5000
-neuron_number = (10000,)
+neuron_number = (5000,)
 norm = (3,)
 
 train_acc = []
