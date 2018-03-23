@@ -5,6 +5,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from CIFAR10.cifar10dataset import train_data, train_labels, test_data, test_labels
 import Misc.CUDA_calc as gpu
+import matplotlib.pyplot as plt
 
 
 def ae_elm(X, n_number, n_type='sigm', norm=None, orth_init=False, X_test=None):
@@ -107,21 +108,27 @@ y_test = onehot_encoder.fit_transform(y_test)
 
 print('\nELM-AE GPU')
 num_layer = 2
-AE_neurons = 2000
+AE_neurons = 2048
 for i in range(num_layer):
     if i == 0:
-        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** 1, orth_init=True, X_test=X_test)
+        B_AE = ae_elm(X_train, AE_neurons, 'sigm', norm=10 ** 1, orth_init=False, X_test=X_test)
         H_train = activation_gpu(X_train, B_AE, 'sigm')
         H_test = activation_gpu(X_test, B_AE, 'sigm')
     else:
-        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -3, orth_init=True, X_test=H_test)
+        B_AE = ae_elm(H_train, AE_neurons, 'sigm', norm=10 ** -1, orth_init=False, X_test=H_test)
         H_train = activation_gpu(H_train, B_AE, 'lin')
         H_test = activation_gpu(H_test, B_AE, 'lin')
+
+#####################################################################################################################
+''''# Random perturbate H_train
+sigma = H_train.std()
+Noise = sigma * np.random.randn(H_train.shape[0],H_train.shape[1])
+H_train = np.add(H_train,Noise)'''
 
 postscaler = StandardScaler()
 H_train = postscaler.fit_transform(H_train)
 H_test = postscaler.transform(H_test)
-#####################################################################################################################
+
 
 print("\nBuilding hdf5 files")
 # Convert data in HDF5 files
@@ -135,17 +142,26 @@ np.set_printoptions(precision=2)
 neuron_number = 15000
 out_class = 10
 
-# Classificator
-print('\nBuilding model: HPELM with ')
-model = hpelm.HPELM(H_train.shape[1], out_class, classification="c", batch=2048, accelerator="GPU", precision='single',
-                    tprint=3, norm=10 ** -8)
-model.add_neurons(neuron_number, 'sigm')
-print(str(model))
-t = time.time()
-model.train(PATH + 'H_train.h5', PATH + 'y_train.h5', 'c')
-elapsed_time_train = time.time() - t
-print("Training time: %f" % elapsed_time_train)
-model.predict(PATH + 'H_train.h5', PATH + 'y_train_pred.h5')
-print('Training Accuracy: ', (1 - model.error(PATH + 'y_train.h5', PATH + 'y_train_pred.h5')))
-model.predict(PATH + 'H_test.h5', PATH + 'y_test_pred.h5')
-print('Test Accuracy: ', (1 - model.error(PATH + 'y_test.h5', PATH + 'y_test_pred.h5')))
+# Classificator, fine tuning norm paramater
+norm = [10 ** 2, 10, 1, 10 ** -2, 10 ** -4, 10 ** -8]
+acc = []
+for i in range(len(norm)):
+    print('\nBuilding model: HPELM with norm: ', norm[i])
+    model = hpelm.HPELM(H_train.shape[1], out_class, classification="c", batch=2048, accelerator="GPU",
+                        precision='single',
+                        tprint=3, norm=10)
+    model.add_neurons(neuron_number, 'sigm')
+    print(str(model))
+    t = time.time()
+    model.train(PATH + 'H_train.h5', PATH + 'y_train.h5', 'c')
+    elapsed_time_train = time.time() - t
+    print("Training time: %f" % elapsed_time_train)
+    model.predict(PATH + 'H_train.h5', PATH + 'y_train_pred.h5')
+    print('Training Accuracy: ', (1 - model.error(PATH + 'y_train.h5', PATH + 'y_train_pred.h5')))
+    model.predict(PATH + 'H_test.h5', PATH + 'y_test_pred.h5')
+    print('Test Accuracy: ', (1 - model.error(PATH + 'y_test.h5', PATH + 'y_test_pred.h5')))
+    acc.append(1 - model.error(PATH + 'y_test.h5', PATH + 'y_test_pred.h5'))
+    model.nnet.reset()  # free GPU memory
+    model.__del__()  # close opened h5 files
+
+plt.semilogx(norm, acc)
