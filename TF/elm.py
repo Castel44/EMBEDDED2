@@ -12,59 +12,60 @@ class elm(object):
             input_size,
             output_size,
             n_neurons,
-            savedir,
+            savedir=None,
+            name="",
             activation=tf.sigmoid,
             type='c',
-            name="",
-            w_initializer='default',
-            b_initializer='default',
+            w_initializer=None,
+            b_initializer=None,
             l2norm=None,
-            batch_size=1000
+            batch_size=1000,
     ):
 
-        self.input_size = input_size
         self.output_size = output_size
         self.n_neurons = n_neurons
         self.batch_size = batch_size
-        self.w_initializer = w_initializer
-        self.b_initializer = b_initializer
         self.savedir = savedir
         self.activation = activation
-        self.name = name
         self.type = type
         self.metric = None
         self.HH = None
         self.HT = None
+        self.nb = None
+        self.iterator = None
+
 
         if l2norm is None:
             # TODO: do with tf precision
             l2norm = 50 * np.finfo(np.float32).eps
         self.l2norm = l2norm
 
+        print('Building graph with %d input, %d output and %d hidden nodes' % (input_size, output_size, n_neurons))
+        print('Hyperpar: norm=', l2norm, '; init=', w_initializer)
         # start tensorflow session
         self.sess = tf.Session()
+
         # Build TensorFlow graph
-        # define graph inputs
         with tf.name_scope("input"):
             self.x = tf.placeholder(dtype='float32', shape=[None, input_size], name='x')
             self.y = tf.placeholder(dtype='float32', shape=[None, output_size], name='labels')
 
         with tf.name_scope("hidden_layer"):
-            if self.w_initializer is 'default' and self.b_initializer is 'default':
+            if w_initializer is None and b_initializer is None:
                 init_w = tf.random_normal_initializer(stddev=tf.div(3.0, tf.sqrt(tf.cast(input_size, tf.float32))))
                 init_b = tf.random_normal_initializer()
             else:
-                print("Using custom inizialization for ELM: %s" % self.name)
+                print("Using custom inizialization for ELM: %s" % name)
                 init_w = w_initializer
                 init_b = b_initializer
 
-                assert self.w_initializer or self.b_initializer is not 'default', "Both w_initializer and b_initializer " \
-                                                                                  "should be provided when using custom initialization"
+                assert w_initializer or b_initializer is not None, "Both w_initializer and b_initializer " \
+                                                                   "should be provided when using custom initialization"
 
             self.Hw = tf.get_variable('Hw', shape=[input_size, n_neurons], dtype=tf.float32, initializer=init_w,
                                       trainable=False)
             self.Hb = tf.get_variable('Hb', shape=[n_neurons], dtype=tf.float32, initializer=init_b, trainable=False)
-            tf.get_variable_scope().reuse_variables()
+            # tf.get_variable_scope().reuse_variables()
 
             self.H = self.activation(tf.matmul(self.x, self.Hw) + self.Hb)
 
@@ -85,19 +86,25 @@ class elm(object):
         else:
             raise ValueError("Invalid argument for type")
 
-        # initialization
-        self.sess.run([self.Hw.initializer, self.Hb.initializer])
-        print("Network parameters have been initialized")
+        if self.savedir is not None:
+            self.writer = tf.summary.FileWriter(self.savedir + name)
+            self.writer.add_graph(self.sess.graph)
 
-        self.writer = tf.summary.FileWriter(self.savedir + self.name)
-        self.writer.add_graph(self.sess.graph)
-
-    def evaluate(self, dataset):
+    def create_dataset_iterator(self, X, Y):
+        print('Creating dataset iterator')
+        dataset = tf.data.Dataset.from_tensor_slices((X, Y))
         # create tensorflow iterator
         batched_dataset = dataset.batch(batch_size=self.batch_size)
-        iterator = batched_dataset.make_initializable_iterator()
-        next_batch = iterator.get_next()
-        self.sess.run(iterator.initializer)
+        self.nb = int(np.ceil(dataset._tensors[1]._shape_as_list()[0] / self.batch_size))
+        self.iterator = batched_dataset.make_initializable_iterator()
+        self.sess.run(self.iterator.initializer)
+
+    def evaluate(self, X, Y=None):
+        if Y is not None:
+            self.create_dataset_iterator(X, Y)
+        else:
+            self.sess.run(self.iterator.initializer)
+        next_batch = self.iterator.get_next()
         metric_vect = []
         while True:
             try:
@@ -108,7 +115,7 @@ class elm(object):
         return np.mean(
             metric_vect)  # TODO self.y_out return ? maybe predic retuns only y_out and then another method computer accuracy
 
-    def train(self, dataset):
+    def train(self, X, Y):
         # define training structure
         with tf.name_scope("training"):
             # initialization and training graph definition
@@ -123,26 +130,22 @@ class elm(object):
             B_op = tf.assign(self.B, tf.matmul(tf.matrix_inverse(self.HH), self.HT))
 
         # add to graph
-        self.writer.add_graph(self.sess.graph)
+        if self.savedir is not None:
+            self.writer.add_graph(self.sess.graph)
+            print("{} Open tensorboard at --logdir={}".format(datetime.now(), self.savedir))
 
-        # Initialize a saver to store model checkpoints
+        # TODO: Initialize a saver to store model
         # saver = tf.train.Saver()
 
-        # create tensorflow iterator
-        batched_dataset = dataset.batch(batch_size=self.batch_size)
-        iterator = batched_dataset.make_initializable_iterator()
-        next_batch = iterator.get_next()
-
-        nb = int(np.ceil(dataset._tensors[1]._shape_as_list()[0] / self.batch_size))  # ceil ?? #TODO
+        self.create_dataset_iterator(X, Y)
+        next_batch = self.iterator.get_next()
 
         # initialize variables
-        self.sess.run([self.HH.initializer, self.HT.initializer])
-        self.sess.run(iterator.initializer)
+        self.sess.run([self.Hw.initializer, self.Hb.initializer, self.HH.initializer, self.HT.initializer])
+        print("Network parameters have been initialized")
 
         t0 = time.time()
         print("{} Start training...".format(datetime.now()))
-        print("{} Open tensorboard at --logdir={}".format(datetime.now(), self.savedir))
-
         batch = 1
         while True:
             try:
@@ -151,35 +154,37 @@ class elm(object):
                 x_batch, y_batch = self.sess.run(next_batch)
                 # Run the training op
                 self.sess.run(train_op, feed_dict={self.x: x_batch, self.y: y_batch})
-                eta = (time.time() - start) * (nb - batch)
+                eta = (time.time() - start) * (self.nb - batch)
                 eta = '%d:%02d' % (eta // 60, eta % 60)
-                print("{}/{} ETA:{}".format(batch, nb, eta))
+                print("Processing batch {}/{} ETA:{}".format(batch, self.nb, eta))
                 batch += 1
             except tf.errors.OutOfRangeError:
                 break
         # TODO: check if HH is invertible
         self.sess.run(B_op)
-        print("Training of ELM {} ended in {}:{:5f}".format(self.name, ((time.time() - t0) // 60),
+        print("Training ended in {}:{:5f}".format(((time.time() - t0) // 60),
                                                             ((time.time() - t0) % 60)))
         print("#" * 100)
 
         # Compute train accuracy
-        train_metric = self.evaluate(dataset)
+        train_metric = self.evaluate(self.iterator)
         if self.type is 'c':
             print('Train accuracy: ', train_metric)
         else:  # regression
             print('Train MSE: ', train_metric)
 
+        return train_metric
+
     def get_Hw_Hb(self):
-        Hw = self.Hw.eval()  # get hidden layer weights matrix
-        Hb = self.Hb.eval()  # get hidden layer biases
+        Hw = self.Hw.eval(session=self.sess)  # get hidden layer weights matrix
+        Hb = self.Hb.eval(session=self.sess)  # get hidden layer biases
         return Hw, Hb
 
     def get_B(self):
-        return self.B.eval()
+        return self.B.eval(session=self.sess)
 
     def get_HH(self):
-        return self.HH.eval()
+        return self.HH.eval(session=self.sess)
 
     def __del__(self):
         self.sess.close()
