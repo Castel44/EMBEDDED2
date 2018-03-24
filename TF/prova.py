@@ -10,7 +10,7 @@ import os
 
 input_size = 28*28
 output_size = 10
-n_neurons= 500
+n_neurons= 2048
 
 
 ortho_w = tf.orthogonal_initializer()
@@ -55,12 +55,10 @@ del elm2
 from keras.layers import Dense, Dropout, Activation, InputLayer, Flatten
 from keras.callbacks import TensorBoard
 
-x_train = x_train.reshape(-1,28,28)
-x_test = x_test.reshape(-1,28,28)
+
 
 model = keras.Sequential()
-model.add(InputLayer(input_shape=(28,28)))
-model.add(Flatten())
+model.add(InputLayer(input_shape=(28*28,)))
 model.add(Dense(n_neurons,kernel_initializer=tf.constant_initializer(Hw),bias_initializer=tf.constant_initializer(Hb)))
 model.add(Activation('relu'))
 #model.add(Dropout(0.75))
