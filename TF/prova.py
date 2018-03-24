@@ -61,14 +61,14 @@ model = keras.Sequential()
 model.add(InputLayer(input_shape=(28*28,)))
 model.add(Dense(n_neurons,kernel_initializer=tf.constant_initializer(Hw),bias_initializer=tf.constant_initializer(Hb)))
 model.add(Activation('relu'))
-#model.add(Dropout(0.75))
+model.add(Dropout(0.75))
 model.add(Dense(10,kernel_initializer=tf.constant_initializer(B),use_bias=False))
 model.add(Activation('softmax'))
 
 print(model.summary())
 
 model.compile(loss='categorical_crossentropy',
-                optimizer=keras.optimizers.nadam(lr=0.0001),
+                optimizer=keras.optimizers.nadam(lr=0.00001),
                 metrics=['accuracy'])
 
 
