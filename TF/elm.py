@@ -82,13 +82,13 @@ class elm(object):
 
                     init_w = tf.random_normal(shape=[self.n_neurons[layer], self.n_neurons[layer+1]],
 
-                                              stddev=tf.sqrt(tf.div(2.,
+                                              stddev=tf.sqrt(tf.div(3.,
                                                                     tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
                                                                            tf.cast(self.n_neurons[layer+2], 'float32')))))
 
                     init_b = tf.random_normal(shape=[self.n_neurons[layer+1]],
 
-                                              stddev=tf.sqrt(tf.div(2.,
+                                              stddev=tf.sqrt(tf.div(3.,
                                                                     tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
                                                                            tf.cast(self.n_neurons[layer+2], 'float32')))))
 
@@ -114,9 +114,9 @@ class elm(object):
 
                         if self.b_initializer[layer] is not None:  # check
 
-                            self.Hb.append(self.w_initializer[layer])
+                            self.Hb.append(self.b_initializer[layer])
 
-                            assert self.Hb[self.n_hidden_layer].shape.as_list() is not [
+                            assert self.Hb[layer].shape.as_list() is not [
                                 self.n_neurons[layer + 1]], "Invalid shape for hidden layer biases tensor"
 
                         else:
@@ -301,12 +301,15 @@ class elm(object):
             print('Train MSE: ', train_metric)
 
 
-
-
     def get_Hw_Hb(self, layer_number = 0):
 
         Hw = self.Hw[layer_number].eval(session=self.sess)  # get hidden layer weights matrix
-        Hb = self.Hb[layer_number].eval(session=self.sess)  # get hidden layer biases
+
+        if self.Hb[layer_number] is not None:
+            Hb = self.Hb[layer_number].eval(session=self.sess)  # get hidden layer biases
+        else:
+
+            Hb = None
 
         return Hw, Hb
 
