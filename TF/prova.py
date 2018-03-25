@@ -1,57 +1,102 @@
 import h5py as h5
-import keras
-from keras.datasets import mnist
-from TF.elm import elm
+
+from keras.datasets import cifar10
+
+from elm import elm
+
 import tensorflow as tf
+
 import os
-import itertools
+
 import numpy as np
 
-######################################################################################################################
-savedir = os.getcwd() + '/elm_tf_test/'
-# Get dataset
-print('MNIST DATASET')
-train, test = mnist.load_data()
+input_size = 32*32*3
+output_size = 10
+n_neurons= 8196
+
+
+ortho_w = tf.orthogonal_initializer()
+uni_b= tf.uniform_unit_scaling_initializer()
+
+init_w = tf.get_variable(name='init_w',shape=[input_size,n_neurons], initializer=ortho_w)
+init_b = tf.get_variable(name='init_b', shape=[n_neurons], initializer=uni_b)
+
+savedir = os.getcwd() + '/elm_tf_test'
+
+elm2 = elm(input_size,output_size, savedir, name='elm2', l2norm=100)
+
+elm2.add_layer(n_neurons, activation=tf.nn.relu)
+elm2.add_layer(n_neurons, activation=tf.nn.relu)
+
+elm2.compile()
+
+train , test  = cifar10.load_data()
+
 x_train,y_train = train
 x_test, y_test = test
-del train, test
+
+import keras
+
 y_train = keras.utils.to_categorical(y_train, num_classes=10)
 y_test = keras.utils.to_categorical(y_test, num_classes=10)
-x_train = x_train.reshape(-1, 28 * 28)
-x_test = x_test.reshape(-1, 28 * 28)
 
-# dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+x_train = x_train.reshape(-1,input_size)
+x_test = x_test.reshape(-1,input_size)
 
-# Hyperparameters
-input_size = x_train.shape[1]
-output_size = 10
-n_neurons = 5000
-batch_size = 5000
-norm = (None, 10 ** -3, 10 ** 0, 10 ** 2, 10 ** 4,)
-ortho_w = tf.orthogonal_initializer()
-unit_b = tf.uniform_unit_scaling_initializer()
-init = ((None, None), (ortho_w, unit_b),)
+train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
 
-train_acc = []
-test_acc = []
-run = 0
-run_comb = list(itertools.product(init, norm))
-for v in itertools.product(init, norm):
-    print('Starting run %d/%d' % (run + 1, run_comb.__len__()))
-    model = elm(input_size, output_size, n_neurons, w_initializer=v[0][0], b_initializer=v[0][1],
-                l2norm=v[1], batch_size=batch_size)
-    train_acc.append(model.train(x_train, y_train))
-    test_acc.append(model.evaluate(x_test, y_test))
-    print('Test accuracy: ', test_acc[run])
-    del model
-    run += 1
+elm2.train(x_train, y_train,batch_size=1000)
+acc = elm2.evaluate(x_test,y_test)
+print(acc)
 
-print('Done training!')
-# os.system('tensorboard --logdir=%s' % savedir)
+iter = elm2.get_iterator(x_test,y_test)
 
-# Searching for best hypar combination
-best_net = np.argmax(test_acc)
-print('Best net with hypepar:')
-print('  -neuron number: ', run_comb[best_net][0])
-print('  -norm: 10 **', run_comb[best_net][1])
-print('Best net test accuracy: ', test_acc[best_net])
+y_pred = []
+
+while True:
+    try: # si può scrivere anche su file qui
+        y_pred.append(elm2.iter_predict(iter))
+
+    except tf.errors.OutOfRangeError:
+        break
+
+Hw1, Hb1 = elm2.get_Hw_Hb(layer_number=0)
+B = elm2.get_B()
+
+del elm2
+
+from keras.layers import Dense, Dropout, Activation, InputLayer, Flatten,BatchNormalization
+from keras.callbacks import TensorBoard
+
+
+model = keras.Sequential()
+model.add(InputLayer(input_shape=(input_size,)))
+model.add(Dense(n_neurons,kernel_initializer=tf.constant_initializer(Hw1), bias_initializer=tf.constant_initializer(Hb1)))
+model.add(Activation('relu'))
+model.add(BatchNormalization())
+#model.add(Dropout(0.75))
+model.add(Dense(10))#,kernel_initializer=tf.constant_initializer(B),use_bias=False))
+model.add(Activation('softmax'))
+
+print(model.summary())
+
+model.compile(loss='categorical_crossentropy',
+                optimizer=keras.optimizers.nadam(lr=1e-4),
+                metrics=['accuracy'])
+
+tensorboard = TensorBoard(log_dir=savedir +"/run0", histogram_freq=0,
+                              write_graph=False, write_images=False)
+
+model.fit(x_train, y_train,
+            batch_size=64,
+            epochs=100,
+            validation_data=(x_test, y_test),
+            shuffle=True, callbacks=[tensorboard])
+
+
+
+
+
+
+

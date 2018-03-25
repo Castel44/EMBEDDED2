@@ -11,173 +11,245 @@ class elm(object):
             self,
             input_size,
             output_size,
-            n_neurons,
-            savedir=None,
-            name="",
-            activation=tf.sigmoid,
-            type='c',
-            w_initializer=None,
-            b_initializer=None,
-            l2norm=None,
-            batch_size=1000,
+            savedir = None,
+            type = 'c',
+            name = "elm",
+            l2norm=None, #TODO with tf precision
+
     ):
 
-        self.output_size = output_size
-        self.n_neurons = n_neurons
-        self.batch_size = batch_size
+        self.n_neurons = [input_size,output_size]
+        self.w_initializer = []
+        self.b_initializer = []
         self.savedir = savedir
-        self.activation = activation
+        self.activation = []
+        self.name = name
         self.type = type
         self.metric = None
         self.HH = None
         self.HT = None
-        self.nb = None
-        self.iterator = None
-
+        self.n_hidden_layer = 0
+        self.H = []
+        self.Hw = []
+        self.Hb = []
+        self.B = None
+        self.y_out = None
 
         if l2norm is None:
-            # TODO: do with tf precision
             l2norm = 50 * np.finfo(np.float32).eps
         self.l2norm = l2norm
 
-        print('Building graph with %d input, %d output and %d hidden nodes' % (input_size, output_size, n_neurons))
-        print('Hyperpar: norm=', l2norm, '; init=', w_initializer)
         # start tensorflow session
         self.sess = tf.Session()
 
-        # Build TensorFlow graph
-        with tf.name_scope("input"):
-            self.x = tf.placeholder(dtype='float32', shape=[None, input_size], name='x')
-            self.y = tf.placeholder(dtype='float32', shape=[None, output_size], name='labels')
-
-        with tf.name_scope("hidden_layer"):
-            if w_initializer is None and b_initializer is None:
-                init_w = tf.random_normal_initializer(stddev=tf.div(3.0, tf.sqrt(tf.cast(input_size, tf.float32))))
-                init_b = tf.random_normal_initializer()
-            else:
-                print("Using custom inizialization for ELM: %s" % name)
-                init_w = w_initializer
-                init_b = b_initializer
-
-                assert w_initializer or b_initializer is not None, "Both w_initializer and b_initializer " \
-                                                                   "should be provided when using custom initialization"
-
-            self.Hw = tf.get_variable('Hw', shape=[input_size, n_neurons], dtype=tf.float32, initializer=init_w,
-                                      trainable=False)
-            self.Hb = tf.get_variable('Hb', shape=[n_neurons], dtype=tf.float32, initializer=init_b, trainable=False)
-            # tf.get_variable_scope().reuse_variables()
-
-            self.H = self.activation(tf.matmul(self.x, self.Hw) + self.Hb)
-
-        with tf.name_scope('output_layer'):
-            self.B = tf.Variable(tf.zeros(shape=[n_neurons, output_size]), dtype=tf.float32, name='B')
-            self.y_out = tf.matmul(self.H, self.B)
-
-        if self.type is 'c':
-            with tf.name_scope("accuracy"):
-                self.correct_prediction = tf.equal(tf.argmax(self.y_out, 1), tf.argmax(self.y, 1))
-                self.metric = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
-        elif self.type is 'r':  # regression
-            with tf.name_scope("mean_squared_error"):
-                # nb possible numerical instability
-                # https://stackoverflow.com/questions/41338509/tensorflow-mean-squared-error-loss-function
-                # TODO
-                self.metric = tf.reduce_mean(tf.squared_difference(self.y_out, self.y, name='mse'))
-        else:
-            raise ValueError("Invalid argument for type")
+        # define graph inputs
+        with tf.name_scope("input_" + self.name):
+            self.x = tf.placeholder(dtype='float32', shape=[None, input_size])
+            self.y = tf.placeholder(dtype='float32', shape=[None, output_size])
 
         if self.savedir is not None:
-            self.writer = tf.summary.FileWriter(self.savedir + name)
+            self.writer = tf.summary.FileWriter(self.savedir + "/" + self.name)
+
+    def add_layer(self,n_neurons, activation=tf.sigmoid, w_init='default', b_init='default'):
+        # added hidden layer
+        self.n_neurons.insert(-1,n_neurons)
+        self.activation.append(activation)
+        self.w_initializer.append(w_init)
+        self.b_initializer.append(b_init)
+        self.n_hidden_layer += 1
+
+    def compile(self):
+        assert self.n_hidden_layer is not 0, "Before compiling the network at least one hidden layer should be created"
+        for layer in range(self.n_hidden_layer):
+
+            with tf.name_scope("hidden_layer_" + self.name + ("_%d" % layer)):
+                if self.w_initializer[layer] is 'default' and self.b_initializer[layer] is 'default':
+                    init_w = tf.random_normal(shape=[self.n_neurons[layer], self.n_neurons[layer+1]],
+                                              stddev=tf.sqrt(tf.div(3.,
+                                                                    tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
+                                                                           tf.cast(self.n_neurons[layer+2], 'float32')))))
+
+                    init_b = tf.random_normal(shape=[self.n_neurons[layer+1]],
+                                              stddev=tf.sqrt(tf.div(3.,
+                                                                    tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
+                                                                           tf.cast(self.n_neurons[layer+2], 'float32')))))
+
+                    self.Hw.append(tf.Variable(init_w))
+                    self.Hb.append(tf.Variable(init_b))
+
+                else:
+                    print("Using custom inizialization for ELM: {} and layer number {}/{}".format(self.name, layer+1, self.n_hidden_layer))
+
+                    with tf.name_scope("custom_initialization_" + ("_%d" % layer)):
+                        self.Hw.append(self.w_initializer[layer])
+                        assert self.Hw[layer] or self.Hb[layer] is not 'default', "Both w_initializer and b_initializer " \
+                            "should be provided when using custom initialization"
+                        assert sorted(self.Hw[layer].shape.as_list()) == sorted([self.n_neurons[layer],
+                                                                                 self.n_neurons[layer + 1]]),\
+                            "Invalid shape for hidden layer weights tensor"
+
+                        if self.b_initializer[layer] is not None:  # check
+                            self.Hb.append(self.b_initializer[layer])
+                            assert self.Hb[layer].shape.as_list()[0] == self.n_neurons[layer + 1],\
+                                "Invalid shape for hidden layer biases tensor"
+                        else:
+                            self.Hb.append(None)
+
+                if layer == 0:
+                    if self.Hb[layer] is not None:
+                        self.H.append(self.activation[layer](tf.matmul(self.x, self.Hw[layer]) + self.Hb[layer]))
+                    else:
+                        self.H.append(self.activation[layer](tf.matmul(self.x, self.Hw[layer])))
+                else:
+                    if self.Hb[layer] is not None:
+                        self.H.append(self.activation[layer](tf.matmul(self.H[layer-1], self.Hw[layer]) + self.Hb[layer]))
+                    else:
+                        self.H.append(self.activation[layer](tf.matmul(self.H[layer - 1], self.Hw[layer])))
+
+
+                # initialization
+                if self.Hb[layer] is not None:
+                    self.sess.run([self.Hw[layer].initializer, self.Hb[layer].initializer])
+
+                else:
+                    self.sess.run([self.Hw[layer].initializer])
+
+        with tf.name_scope('output_layer_' + self.name):
+            self.B = tf.Variable(tf.zeros(shape=[self.n_neurons[self.n_hidden_layer], self.n_neurons[-1]]),
+                             dtype='float32')
+            self.y_out = tf.matmul(self.H[self.n_hidden_layer - 1], self.B)
+
+        print("Network parameters have been initialized")
+
+        if self.savedir is not None:
             self.writer.add_graph(self.sess.graph)
 
-    def create_dataset_iterator(self, X, Y):
+    def get_iterator(self, x, y, batch_size=1000):
         print('Creating dataset iterator')
-        dataset = tf.data.Dataset.from_tensor_slices((X, Y))
-        # create tensorflow iterator
-        batched_dataset = dataset.batch(batch_size=self.batch_size)
-        self.nb = int(np.ceil(dataset._tensors[1]._shape_as_list()[0] / self.batch_size))
-        self.iterator = batched_dataset.make_initializable_iterator()
-        self.sess.run(self.iterator.initializer)
+        dataset = tf.data.Dataset.from_tensor_slices((x, y))
+        # creating tensorflow iterator
+        batched_dataset = dataset.batch(batch_size=batch_size)
+        iterator = batched_dataset.make_initializable_iterator()
+        self.sess.run(iterator.initializer)
+        return iterator
 
-    def evaluate(self, X, Y=None):
-        if Y is not None:
-            self.create_dataset_iterator(X, Y)
-        else:
-            self.sess.run(self.iterator.initializer)
-        next_batch = self.iterator.get_next()
+    def evaluate(self, x, y, batch_size =1000, iterator=None):
+        if iterator is not None: # reset iterator
+            self.sess.run(iterator.initializer)
+        else:  # create iterator
+            iterator = self.get_iterator(x, y, batch_size=batch_size)
+
+        next_batch = iterator.get_next()
+
         metric_vect = []
         while True:
             try:
                 x_batch, y_batch = self.sess.run(next_batch)
-                metric_vect.append(self.sess.run(self.metric, feed_dict={self.x: x_batch, self.y: y_batch}))
+                metric_vect.append(self.sess.run(self.metric,feed_dict={self.x: x_batch, self.y: y_batch}))
             except tf.errors.OutOfRangeError:
                 break
-        return np.mean(
-            metric_vect)  # TODO self.y_out return ? maybe predic retuns only y_out and then another method computer accuracy
+        return np.mean(metric_vect)
 
-    def train(self, X, Y):
+    def train(self, x, y,  batch_size=1000):
         # define training structure
-        with tf.name_scope("training"):
+        with tf.name_scope("training_" + self.name):
             # initialization and training graph definition
-            self.HH = tf.Variable(tf.multiply(tf.eye(self.n_neurons, dtype=tf.float32), self.l2norm), name='HH')
-            self.HT = tf.Variable(tf.zeros([self.n_neurons, self.output_size]), name='HT')
+            self.HH = tf.Variable(tf.multiply(tf.eye(self.n_neurons[self.n_hidden_layer], dtype=tf.float32),
+                                              tf.cast(self.l2norm, tf.float32)),
+                                              name='HH')
+
+            self.HT = tf.Variable(tf.zeros([self.n_neurons[self.n_hidden_layer], self.n_neurons[-1]]), name='HT')
 
             train_op = tf.group(
-                tf.assign_add(self.HH, tf.matmul(self.H, self.H, transpose_a=True)),
-                tf.assign_add(self.HT, tf.matmul(self.H, self.y, transpose_a=True))
+             tf.assign_add(self.HH, tf.matmul(self.H[self.n_hidden_layer-1], self.H[self.n_hidden_layer-1], transpose_a=True)),
+             tf.assign_add(self.HT, tf.matmul(self.H[self.n_hidden_layer-1], self.y, transpose_a=True))
             )
-            # TODO: check for correct matrix inversion HH
+
             B_op = tf.assign(self.B, tf.matmul(tf.matrix_inverse(self.HH), self.HT))
 
-        # add to graph
+        if self.type is 'c':
+            # no need for cost function # TODO
+            with tf.name_scope("accuracy_" + self.name):
+                correct_prediction = tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_out, 1))
+                self.metric = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        elif self.type is 'r': # regression
+            with tf.name_scope("mean_squared_error_" + self.name):
+                # nb possible numerical instability
+                # https://stackoverflow.com/questions/41338509/tensorflow-mean-squared-error-loss-function
+                # TODO
+                self.metric = tf.reduce_mean(tf.squared_difference(self.y_out,self.y, name='mse'))
+        else:
+            raise ValueError("Invalid argument for type")
+
         if self.savedir is not None:
+            # add to graph
             self.writer.add_graph(self.sess.graph)
-            print("{} Open tensorboard at --logdir={}".format(datetime.now(), self.savedir))
+            # Initialize a saver to store model checkpoints # TODO saver
+            saver = tf.train.Saver()
+            print("{} Open tensorboard at --logdir={}".format(datetime.now(),
+                                                              self.savedir))
 
-        # TODO: Initialize a saver to store model
-        # saver = tf.train.Saver()
+        iterator = self.get_iterator(x, y, batch_size)
+        next_batch = iterator.get_next()
 
-        self.create_dataset_iterator(X, Y)
-        next_batch = self.iterator.get_next()
+        nb = int(np.ceil(x.shape[0]/batch_size))     #TODO
 
         # initialize variables
-        self.sess.run([self.Hw.initializer, self.Hb.initializer, self.HH.initializer, self.HT.initializer])
-        print("Network parameters have been initialized")
+        self.sess.run([self.HH.initializer, self.HT.initializer])
+        self.sess.run(iterator.initializer)
 
         t0 = time.time()
         print("{} Start training...".format(datetime.now()))
-        batch = 1
+
+        batch=1
         while True:
             try:
                 start = time.time()
                 # get next batch of data
                 x_batch, y_batch = self.sess.run(next_batch)
+
                 # Run the training op
-                self.sess.run(train_op, feed_dict={self.x: x_batch, self.y: y_batch})
-                eta = (time.time() - start) * (self.nb - batch)
+                self.sess.run(train_op, feed_dict={self.x: x_batch,
+                                                   self.y: y_batch})
+                eta = (time.time() - start) * (nb - batch)
                 eta = '%d:%02d' % (eta // 60, eta % 60)
-                print("Processing batch {}/{} ETA:{}".format(batch, self.nb, eta))
+                print("{}/{} ETA:{}".format(batch, nb, eta))
                 batch += 1
             except tf.errors.OutOfRangeError:
                 break
-        # TODO: check if HH is invertible
-        self.sess.run(B_op)
-        print("Training ended in {}:{:5f}".format(((time.time() - t0) // 60),
-                                                            ((time.time() - t0) % 60)))
-        print("#" * 100)
 
-        # Compute train accuracy
-        train_metric = self.evaluate(self.iterator)
+        self.sess.run(B_op)
+        print("Training of ELM {} ended in {}:{:5f}".format(self.name, ((time.time() - t0) // 60),
+                                                         ((time.time() - t0) % 60)))
+        print("#"*100)
+
+        train_metric = self.evaluate(x,y, iterator=iterator)
         if self.type is 'c':
             print('Train accuracy: ', train_metric)
-        else:  # regression
+        else:  #regression
             print('Train MSE: ', train_metric)
-
         return train_metric
 
-    def get_Hw_Hb(self):
-        Hw = self.Hw.eval(session=self.sess)  # get hidden layer weights matrix
-        Hb = self.Hb.eval(session=self.sess)  # get hidden layer biases
+    def iter_predict(self, x, y):
+        iterator = self.get_iterator(x, y)
+        next_batch = iterator.get_next()
+
+        y_out = []
+        while True:
+            try:
+                x_batch, y_batch = self.sess.run(next_batch)
+                y_out.append(self.sess.run([self.y_out],feed_dict ={self.x: x_batch, self.y:y_batch}))
+            except tf.errors.OutOfRangeError:
+                break
+
+        return np.asarray(y_out)
+
+    def get_Hw_Hb(self, layer_number = 0):
+        Hw = self.Hw[layer_number].eval(session=self.sess)  # get hidden layer weights matrix
+        if self.Hb[layer_number] is not None:
+            Hb = self.Hb[layer_number].eval(session=self.sess)  # get hidden layer biases
+        else:
+            Hb = None
         return Hw, Hb
 
     def get_B(self):
@@ -190,3 +262,14 @@ class elm(object):
         self.sess.close()
         tf.reset_default_graph()
         print("TensorFlow graph resetted")
+
+
+
+
+
+
+
+
+
+
+
