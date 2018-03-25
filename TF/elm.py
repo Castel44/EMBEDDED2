@@ -109,15 +109,16 @@ class elm(object):
                             "Both w_initializer and b_initializer " \
                             "should be provided when using custom initialization"
 
-                        assert self.Hw[layer].shape.as_list() is not [self.n_neurons[layer], self.n_neurons[
-                            layer + 1]], "Invalid shape for hidden layer weights tensor"
+                        assert sorted(self.Hw[layer].shape.as_list()) == sorted([self.n_neurons[layer],
+                                                                                 self.n_neurons[layer + 1]]),\
+                            "Invalid shape for hidden layer weights tensor"
 
                         if self.b_initializer[layer] is not None:  # check
 
                             self.Hb.append(self.b_initializer[layer])
 
-                            assert self.Hb[layer].shape.as_list() is not [
-                                self.n_neurons[layer + 1]], "Invalid shape for hidden layer biases tensor"
+                            assert self.Hb[layer].shape.as_list()[0] == self.n_neurons[layer + 1],\
+                                "Invalid shape for hidden layer biases tensor"
 
                         else:
 
@@ -173,9 +174,15 @@ class elm(object):
         return iterator
 
 
-    def evaluate(self, x, y, batch_size = 10000):
+    def evaluate(self, x, y, batch_size = 10000, iterator=None):
 
-        iterator = self.get_iterator(x,y,batch_size=batch_size)
+        if iterator is not None: # reset iterator
+
+            self.sess.run(iterator.initializer)
+
+        else: # create iterator
+
+            iterator = self.get_iterator(x, y, batch_size=batch_size)
 
         next_batch = iterator.get_next()
 
@@ -290,7 +297,7 @@ class elm(object):
 
         print("#"*100)
 
-        train_metric = self.evaluate(x,y)
+        train_metric = self.evaluate(x,y, iterator=iterator)
 
         if self.type is 'c':
 
@@ -299,6 +306,18 @@ class elm(object):
         else: #regression
 
             print('Train MSE: ', train_metric)
+
+
+    def iter_predict(self, iterator):
+
+        next_batch = iterator.get_next()
+
+        x_batch, y_batch = self.sess.run(next_batch)
+
+        y_out = self.sess.run([self.y_out],feed_dict ={self.x: x_batch, self.y:y_batch})
+
+        return y_out
+
 
 
     def get_Hw_Hb(self, layer_number = 0):
@@ -320,6 +339,7 @@ class elm(object):
     def get_HH(self):
 
         return self.HH.eval(session=self.sess)
+
 
     def __del__(self):
 
