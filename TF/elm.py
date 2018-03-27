@@ -1,8 +1,10 @@
 import tensorflow as tf
 
 from datetime import datetime
+import os
 import time
 import numpy as np
+import h5py
 
 
 class elm(object):
@@ -133,7 +135,7 @@ class elm(object):
         self.sess.run(iterator.initializer)
         return iterator
 
-    def evaluate(self, x, y, batch_size =1000, iterator=None):
+    def evaluate(self, x, y, batch_size =1000, iterator=None): #TODO predict and evaluate can be combined actually
         if iterator is not None: # reset iterator
             self.sess.run(iterator.initializer)
         else:  # create iterator
@@ -142,6 +144,7 @@ class elm(object):
         next_batch = iterator.get_next()
 
         metric_vect = []
+
         while True:
             try:
                 x_batch, y_batch = self.sess.run(next_batch)
@@ -168,7 +171,7 @@ class elm(object):
             B_op = tf.assign(self.B, tf.matmul(tf.matrix_inverse(self.HH), self.HT))
 
         if self.type is 'c':
-            # no need for cost function # TODO
+            # no need for cost function # TODO this can use the predict method actually
             with tf.name_scope("accuracy_" + self.name):
                 correct_prediction = tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_out, 1))
                 self.metric = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -230,19 +233,47 @@ class elm(object):
             print('Train MSE: ', train_metric)
         return train_metric
 
-    def iter_predict(self, x, y):
-        iterator = self.get_iterator(x, y)
+    def iter_predict(self, x, y, dataname=None, batch_size = 10000, **kwargs):
+        iterator = self.get_iterator(x, y, batch_size=batch_size)
         next_batch = iterator.get_next()
 
-        y_out = []
-        while True:
-            try:
-                x_batch, y_batch = self.sess.run(next_batch)
-                y_out.append(self.sess.run([self.y_out],feed_dict ={self.x: x_batch, self.y:y_batch}))
-            except tf.errors.OutOfRangeError:
-                break
+        if dataname is not None:  # write to hdf5 file
 
-        return np.asarray(y_out)
+            path = kwargs.get('filepath', "%s" % (self.savedir + "/" + dataname + ".hdf5"))
+
+            assert os.path.exists(path) is not True, "Error: The file to which predicted values " \
+                                                     "will be appended already exist."
+
+            with h5py.File(path, "a") as f:
+
+
+                pred_dset = f.create_dataset(dataname,(0,*y.shape[1:]), maxshape=(None,*y.shape[1:]),
+                                          dtype='float32', chunks=(batch_size,*y.shape[1:]))
+
+                while True:
+                    try:
+                        x_batch, y_batch = self.sess.run(next_batch)
+                        pred_dset.resize(pred_dset.shape[0] + batch_size, axis=0)
+                        # append at the end
+                        pred_dset[-batch_size:] = self.sess.run([self.y_out],
+                                                                feed_dict={self.x: x_batch, self.y: y_batch})
+
+                    except tf.errors.OutOfRangeError:
+                        break
+
+                #return pred_dset #TODO return ?
+        else:
+
+            y_out = []
+            while True:
+                try:
+                    x_batch, y_batch = self.sess.run(next_batch)
+                    y_out.append(self.sess.run(self.y_out, feed_dict={self.x: x_batch, self.y: y_batch}))
+
+                except tf.errors.OutOfRangeError:
+                    break
+
+            return np.reshape(np.asarray(y_out), ((y.shape)))
 
     def get_Hw_Hb(self, layer_number = 0):
         Hw = self.Hw[layer_number].eval(session=self.sess)  # get hidden layer weights matrix
