@@ -34,6 +34,7 @@ def ELM_classificator(size_in, size_out, n_neuron, batch_size, norm):
     with tf.name_scope('hidden_layer'):
         w = tf.Variable(tf.random_normal(shape=[size_in, n_neuron], stddev=1, dtype=tf.float32), trainable=False,
                         name='w')
+        # w = tf.get_variable('w', shape=[size_in, n_neuron],dtype=tf.float32, initializer=tf.orthogonal_initializer(), trainable=None)
         b = tf.Variable(tf.random_normal(shape=[n_neuron], stddev=1, dtype=tf.float32), trainable=False, name='b')
         H = tf.sigmoid(tf.matmul(x, w) + b)  # H idden reprs
 
@@ -100,8 +101,8 @@ print('x_train shape: ', x_train.shape)
 
 # HYPEPARAMETERS
 batch_size = 5000
-neuron_number = (15000,)
-norm = (3,)
+neuron_number = (5000,)
+norm = (-3,)
 
 train_acc = []
 test_acc = []
