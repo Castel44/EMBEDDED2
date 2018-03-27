@@ -16,6 +16,8 @@ import numpy as np
 import tensorflow as tf
 from lr_scheduler import lr_sgdr,lr_finder
 
+from cyclic_lr import CyclicLR
+
 run_var = 0
 
 log_dir = os.getcwd() + '/mlp_vs_elm_cifar10'
@@ -23,16 +25,16 @@ data_path = parentdir + '/cifar10_data/'
 
 batch_size = 64
 num_classes = 10
-epochs = 100
-data_augmentation = False
+epochs = 200
+data_augmentation = True
 
 ##### HYPERPARAMS ##############
-
-nadam = keras.optimizers.nadam(lr=0.001, schedule_decay=0.001)
+cyclic = keras.optimizers.adam(lr=0.0001)
+nadam = keras.optimizers.nadam(lr=0.0001, schedule_decay=0.0001)
 sgdr = keras.optimizers.nadam(lr=0.001) #keras.optimizers.SGD(lr=0.001,nesterov=True)
-adam = keras.optimizers.adam(lr=0.001)
+adam = keras.optimizers.adam(lr=0.0001)
 
-hyperpar = {'opt' : [nadam]}
+hyperpar = {'opt' : [adam]}
 
 cifar10.maybe_download_and_extract(data_path)
 
@@ -50,8 +52,6 @@ print("- Test-set:\t\t{}".format(len(images_test)))
 # scale input data
 x_train = images_train.astype('float32')
 x_test = images_test.astype('float32')
-x_train /= 255
-x_test /= 255
 
 
 def createntrain(hyperpar,save_dir):
@@ -59,10 +59,10 @@ def createntrain(hyperpar,save_dir):
     model = Sequential()
     model.add(InputLayer(input_shape=(32, 32, 3)))
     model.add(Flatten())
-    model.add(Dense(4000))
+    model.add(Dense(1000))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(4000))
+    model.add(Dense(1000))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(num_classes))
@@ -89,7 +89,7 @@ def createntrain(hyperpar,save_dir):
 
     if hyperpar['opt'] == sgdr:
 
-        lr_sched = lr_sgdr(eta_min = 0.0008, eta_max= 0.0018, Ti=5*(len(x_train)//batch_size), Tmult=1, eta_decay=1 )
+        lr_sched = lr_sgdr(eta_min = 0.0001, eta_max= 0.0018, Ti=5*(len(x_train)//batch_size), Tmult=1, eta_decay=1 )
 
         model.fit(x_train, labels_train,
             batch_size=batch_size,
@@ -97,13 +97,71 @@ def createntrain(hyperpar,save_dir):
             validation_data=(x_test, labels_test),
             shuffle=True, callbacks=[tensorboard, ckpt,lr_sched])
 
-    else:
+    elif hyperpar['opt'] == cyclic:
+
+        clr_triangular = CyclicLR(mode='triangular',step_size=7000, base_lr=0.0000001, max_lr=0.00015)
+        #clr = CyclicLR(base_lr=0.0000001,max_lr=0.0006, step_size=int(50000//batch_size*10))
 
         model.fit(x_train, labels_train,
                   batch_size=batch_size,
                   epochs=epochs,
                   validation_data=(x_test, labels_test),
-                  shuffle=True, callbacks=[tensorboard, ckpt])
+                  shuffle=True, callbacks=[tensorboard, ckpt, clr_triangular])
+
+
+
+    else:
+
+
+
+        if data_augmentation is False:
+
+
+            model.fit(x_train, labels_train,
+                      batch_size=batch_size,
+                      epochs=epochs,
+                      validation_data=(x_test, labels_test),
+                      shuffle=True, callbacks=[tensorboard, ckpt])
+
+        else:
+
+            print('Using real-time data augmentation.')
+
+            clr_triangular = CyclicLR(mode='triangular', step_size=7000, base_lr=0.00000001, max_lr=0.00015)
+            #clr = CyclicLR(base_lr=0.00000001, max_lr=0.0006, step_size=int(50000 // batch_size * 10))
+            # This will do preprocessing and realtime data augmentation:
+            datagen = ImageDataGenerator(
+                featurewise_center=False,  # set input mean to 0 over the dataset
+                samplewise_center=True,  # set each sample mean to 0
+                featurewise_std_normalization=False,  # divide inputs by std of the dataset
+                samplewise_std_normalization=True,  # divide each input by its std
+                zca_whitening=True,  # apply ZCA whitening
+                rotation_range=0,  # randomly rotate images in the range (degrees, 0 to 180)
+                width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
+                height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
+                horizontal_flip=True,  # randomly flip images
+                vertical_flip=False)  # randomly flip images
+
+            # Compute quantities required for feature-wise normalization
+            # (std, mean, and principal components if ZCA whitening is applied).
+            datagen.fit(x_train)
+
+            model.fit_generator(datagen.flow(x_train, labels_train,
+                      batch_size=batch_size),
+                      epochs=epochs,
+                      validation_data=(x_test, labels_test),
+                      workers=4,
+                       callbacks=[tensorboard, ckpt, clr_triangular])
+
+            h = clr.history
+            lr = h['lr']
+            acc = h['acc']
+            import matplotlib.pyplot as plt
+            plt.plot(lr,acc)
+            imp_res_len=100
+            imp_res = np.ones(imp_res_len)/imp_res_len
+            filtered=np.convolve(acc,imp_res,mode='same')
+            plt.plot(lr,filtered)
 
 
     return model
