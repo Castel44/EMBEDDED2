@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 from datetime import datetime
 import os
 import time
@@ -52,9 +51,9 @@ class elm(object):
         if self.savedir is not None:
             self.writer = tf.summary.FileWriter(self.savedir + "/" + self.name)
 
-    def add_layer(self,n_neurons, activation=tf.sigmoid, w_init='default', b_init='default'):
-        # added hidden layer
-        self.n_neurons.insert(-1,n_neurons)
+    def add_layer(self, n_neurons, activation=tf.sigmoid, w_init='default', b_init='default'):
+        # add an hidden layer
+        self.n_neurons.insert(-1, n_neurons)
         self.activation.append(activation)
         self.w_initializer.append(w_init)
         self.b_initializer.append(b_init)
@@ -65,26 +64,34 @@ class elm(object):
         for layer in range(self.n_hidden_layer):
 
             with tf.name_scope("hidden_layer_" + self.name + ("_%d" % layer)):
-                if self.w_initializer[layer] is 'default' and self.b_initializer[layer] is 'default':
+                if self.w_initializer[layer] is 'default' or self.b_initializer[layer] is 'default':
                     init_w = tf.random_normal(shape=[self.n_neurons[layer], self.n_neurons[layer+1]],
-                                              stddev=tf.sqrt(tf.div(3.,
+                                              stddev=tf.sqrt(tf.div(2.,
                                                                     tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
                                                                            tf.cast(self.n_neurons[layer+2], 'float32')))))
 
-                    init_b = tf.random_normal(shape=[self.n_neurons[layer+1]],
-                                              stddev=tf.sqrt(tf.div(3.,
-                                                                    tf.add(tf.cast(self.n_neurons[layer-1], 'float32'),
-                                                                           tf.cast(self.n_neurons[layer+2], 'float32')))))
+                    if self.b_initializer[layer] is not None:
+                        init_b = tf.random_normal(shape=[self.n_neurons[layer + 1]],
+                                                  stddev=tf.sqrt(tf.div(2.,
+                                                                        tf.add(tf.cast(self.n_neurons[layer - 1],
+                                                                                       'float32'),
+                                                                               tf.cast(self.n_neurons[layer + 2],
+                                                                                       'float32')))))
+
+                        self.Hb.append(tf.Variable(init_b))
+                    else:
+                        self.Hb.append(None)
+
+
 
                     self.Hw.append(tf.Variable(init_w))
-                    self.Hb.append(tf.Variable(init_b))
 
                 else:
                     print("Using custom inizialization for ELM: {} and layer number {}/{}".format(self.name, layer+1, self.n_hidden_layer))
 
                     with tf.name_scope("custom_initialization_" + ("_%d" % layer)):
                         self.Hw.append(self.w_initializer[layer])
-                        assert self.Hw[layer] or self.Hb[layer] is not 'default', "Both w_initializer and b_initializer " \
+                        assert self.Hw[layer] or self.Hb[layer] is 'default', "Both w_initializer and b_initializer " \
                             "should be provided when using custom initialization"
                         assert sorted(self.Hw[layer].shape.as_list()) == sorted([self.n_neurons[layer],
                                                                                  self.n_neurons[layer + 1]]),\
@@ -107,7 +114,6 @@ class elm(object):
                         self.H.append(self.activation[layer](tf.matmul(self.H[layer-1], self.Hw[layer]) + self.Hb[layer]))
                     else:
                         self.H.append(self.activation[layer](tf.matmul(self.H[layer - 1], self.Hw[layer])))
-
 
                 # initialization
                 if self.Hb[layer] is not None:
@@ -246,9 +252,8 @@ class elm(object):
 
             with h5py.File(path, "a") as f:
 
-
-                pred_dset = f.create_dataset(dataname,(0,*y.shape[1:]), maxshape=(None,*y.shape[1:]),
-                                          dtype='float32', chunks=(batch_size,*y.shape[1:]))
+                pred_dset = f.create_dataset(dataname,(0, *y.shape[1:]), maxshape=(None, *y.shape[1:]),
+                                             dtype='float32', chunks=(batch_size,*y.shape[1:]))
 
                 while True:
                     try:
@@ -291,7 +296,7 @@ class elm(object):
 
     def __del__(self):
         self.sess.close()
-        tf.reset_default_graph()
+        #tf.reset_default_graph()
         print("TensorFlow graph resetted")
 
 
