@@ -53,14 +53,10 @@ class elm(object):
             # TODO: better gestion of init_w and init_b
             if w_init is 'default' or b_init is 'default':
                 init_w = tf.random_normal(shape=[self.n_neurons[0], self.n_neurons[1]],
-                                          stddev=tf.sqrt(tf.div(2.,
-                                                                tf.add(tf.cast(self.n_neurons[0], 'float32'),
-                                                                       tf.cast(self.n_neurons[2], 'float32')))))
+                                          stddev=3. * tf.sqrt(tf.div(1., self.n_neurons[0])))
 
                 init_b = tf.random_normal(shape=[self.n_neurons[1]],
-                                          stddev=tf.sqrt(tf.div(2.,
-                                                                tf.add(tf.cast(self.n_neurons[0], 'float32'),
-                                                                       tf.cast(self.n_neurons[2], 'float32')))))
+                                          stddev=3. * tf.sqrt(tf.div(1., self.n_neurons[0])))
 
                 self.Hb.append(tf.Variable(init_b, dtype=tf.float32, name='Hb', trainable=False))
                 self.Hw.append(tf.Variable(init_w, dtype=tf.float32, name='Hw', trainable=False))
@@ -113,10 +109,11 @@ class elm(object):
         while True:
             try:
                 x_batch, y_batch = self.sess.run(next_batch)
+                #x_batch = (x_batch - np.mean(x_batch)) / np.std(x_batch)
                 metric_vect.append(self.sess.run(self.metric, feed_dict={self.x: x_batch, self.y: y_batch}))
             except tf.errors.OutOfRangeError:
                 break
-        return np.mean(metric_vect)
+        return np.mean(metric_vect, dtype=np.float64)
 
     # TODO: fix conflict between iterator and x y data, problems will rise with hdf5 dataset
     # maybe do a parse argument and pass num batch and size?
@@ -176,6 +173,7 @@ class elm(object):
                 start = time.time()
                 # get next batch of data
                 x_batch, y_batch = self.sess.run(next_batch)
+                #x_batch = (x_batch - np.mean(x_batch)) / np.std(x_batch)
                 # Run the training op
                 self.sess.run(train_op, feed_dict={self.x: x_batch, self.y: y_batch})
                 if batch % 25 == 0:

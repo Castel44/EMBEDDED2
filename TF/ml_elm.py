@@ -89,11 +89,11 @@ class ml_elm(elm):
             print("Network parameters have been initialized")
 
     def _compile_layer(self, layer):
-        #TODO: should i add biases to hidden reprs?
+        #TODO: should i add biases to hidden reprs? slighy better performance
         with tf.name_scope("hidden_layer_of_" + self.name + ("_n_%d" % layer)):
             #bias = tf.Variable(tf.random_normal(shape=[self.n_neurons[layer + 1]],
                                                 #stddev=3. * tf.sqrt(tf.div(1., self.n_neurons[layer - 1]))),
-                              # trainable=False, name='bias')
+                              #trainable=False, name='bias')
             if layer == 0:
                 self.H.append(self.activation[layer](tf.matmul(self.x, tf.transpose(self.ae_B[layer]))))
             else:
@@ -172,10 +172,14 @@ class ml_elm(elm):
         print("MSE: %.7f" % metric)
         print("#" * 100)
 
-    def train(self, x, y, batch_size=1000):
+    def train(self, x, y, iterator=None, batch_size=1000):
         assert self.n_hidden_layer > 1, "Before compiling the network at least two hidden layers should be created"
-        # create iterator
-        iterator = self.get_iterator(x, y, batch_size)
+        # Get dataset
+        if iterator is not None:  # reset iterator
+            self.sess.run(iterator.initializer)
+        else:  # create iterator
+            iterator = self.get_iterator(x, y, batch_size=batch_size)
+
         nb = int(np.ceil(x.shape[0] / batch_size))
 
         for layer in range(self.n_hidden_layer - 1):
@@ -308,6 +312,7 @@ class ml_elm(elm):
 
 def main():
     import keras
+    from keras.datasets import cifar10
     import os
     from sklearn.preprocessing import StandardScaler
 
@@ -320,15 +325,28 @@ def main():
     y_test = keras.utils.to_categorical(y_test, num_classes=10)
     x_train = x_train.reshape(-1, 28 * 28)
     x_test = x_test.reshape(-1, 28 * 28)
+    '''
+
+    print("Loading Dataset: CIFAR10")
+    # The data, split between train and test sets:
+    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+    print('x_train shape:', x_train.shape)
+    print(x_train.shape[0], 'train samples')
+    print(x_test.shape[0], 'test samples')
+    y_train = keras.utils.to_categorical(y_train, num_classes=10)
+    y_test = keras.utils.to_categorical(y_test, num_classes=10)
+    x_train = x_train.reshape(-1, 32*32*3)
+    x_test = x_test.reshape(-1, 32*32*3)
+    '''
 
     prescaler = StandardScaler()
     x_train = prescaler.fit_transform(x_train.astype('float32'))
     x_test = prescaler.transform(x_test.astype('float32'))
-    # del prescaler
 
-    input_size = 784
+    # Hyperparameters
+    input_size = x_train.shape[1]
     output_size = 10
-
+    '''
     # https://www.wolframalpha.com/input/?i=plot+sign(x)*((k*abs(x)))%2F(k-a*abs(x)%2B1),+x%3D-255..255,++k%3D-100,+a%3D1
     def tunable_sigm(t):
         k = -100.
@@ -347,11 +365,12 @@ def main():
 
     #   return tf.sign(x)*tf.nn.relu(x)
     #, savedir=(os.getcwd() + "/ml_elm")
+    '''
 
-    ml_elm1 = ml_elm(input_size, output_size, savedir=(os.getcwd() + "/ml_elm"))
+    ml_elm1 = ml_elm(input_size, output_size)
+    ml_elm1.add_layer(700, l2norm=10**1)
     ml_elm1.add_layer(700, l2norm=10**-1)
-    ml_elm1.add_layer(700, l2norm=10**-2)
-    ml_elm1.add_layer(15000, l2norm=10**-3)
+    ml_elm1.add_layer(15000, l2norm=10**-4)
     ml_elm1.train(x_train, y_train, batch_size=1000)
     acc = ml_elm1.evaluate(x_test, y_test)
 
