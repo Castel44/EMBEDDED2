@@ -77,7 +77,7 @@ batch_size = neuron_number
 
 B = []
 B_raw = []
-orth_init = True
+orth_init = False
 for i in range(10):
     X_train = X_tr[y_tr == i]
 

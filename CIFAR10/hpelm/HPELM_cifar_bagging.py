@@ -127,7 +127,7 @@ CV_folds = 10
 batch_size = neuron_number
 # np.random.seed(42)
 neuron_type = ('tanh', 'sigm')
-n_estimator = 100
+n_estimator = 10
 
 #######################################################################################################################
 # Training networks

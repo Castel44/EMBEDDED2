@@ -41,16 +41,21 @@ n_neurons = (4096,)
 batch_size = 5000
 n_epochs = 1
 repeate_run = 1
-norm = repeate_run*(None, 10**0, 10**3,)
+norm = repeate_run*(None, 10**-2, 10**0, 10**3,)
 ortho_w = tf.orthogonal_initializer()
 uni_b = tf.variance_scaling_initializer(distribution='uniform')
-init = (['default', 'default'], [ortho_w, uni_b],)
+init_w = tf.random_normal(shape=[input_size,n_neurons[0]],
+                          stddev=3. * tf.sqrt(tf.div(1., input_size)))
+
+init_b = tf.random_normal(shape=[n_neurons[0]],
+                          stddev=3. * tf.sqrt(tf.div(1., input_size)))
+init = (['default', 'default'], [init_w, init_b],)
 
 # pre-processing pipeline
 start = time.time()
 datagen = ImageDataGenerator(
-    samplewise_center=True,
-    samplewise_std_normalization=True,
+    featurewise_center=True,
+    featurewise_std_normalization=True,
     #rotation_range=15,
     #width_shift_range=0.15,
     #height_shift_range=0.15,
@@ -111,7 +116,7 @@ for v in itertools.product(n_neurons, init, norm):
     t0 = time.time()
     model = elm(input_size=input_size, output_size=output_size, l2norm=v[2])
     if v[1][1] is not 'default':
-        with tf.variable_scope('custom_init', reuse=tf.AUTO_REUSE):
+        with tf.variable_scope('hpelm_init', reuse=tf.AUTO_REUSE):
             v[1][0] = tf.get_variable(name='init_w', shape=[input_size, v[0]], initializer=ortho_w)
             v[1][1] = tf.get_variable(name='init_b', shape=[v[0]], initializer=uni_b)
     model.add_layer(v[0], activation=tf.sigmoid, w_init=v[1][0], b_init=v[1][1])

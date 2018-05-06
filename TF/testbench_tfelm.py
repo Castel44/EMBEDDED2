@@ -1,7 +1,7 @@
 import keras
 from keras.datasets import mnist
 from keras.datasets import cifar10
-from TF.elm import elm
+from TF.elm import elm as elm
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 import os
@@ -46,9 +46,9 @@ y_test = keras.utils.to_categorical(y_test, num_classes=10)
 x_train = x_train.reshape(-1, 32 * 32 * 3).astype('float32')
 x_test = x_test.reshape(-1, 32 * 32 * 3).astype('float32')
 
-#prescaler = StandardScaler()
-#x_train = prescaler.fit_transform(x_train.astype('float32'))
-#x_test = prescaler.transform(x_test.astype('float32'))
+prescaler = StandardScaler()
+x_train = prescaler.fit_transform(x_train.astype('float32'))
+x_test = prescaler.transform(x_test.astype('float32'))
 
 # Hyperparameters
 input_size = x_train.shape[1]
@@ -56,10 +56,10 @@ output_size = 10
 n_neurons = 4096
 batch_size = 1000
 repeate_run = 1
-norm = repeate_run*(None, 10**2,)
+norm = repeate_run*(10**-5, 10**-2, 10**0, 10**3,)
 ortho_w = tf.orthogonal_initializer()
 uni_b = tf.variance_scaling_initializer(distribution='uniform')
-init = (['default', 'default'], [ortho_w, uni_b],)
+init = (['default', 'default'],)
 
 train_iter = create_iterator(x_train, y_train, batch_size=batch_size)
 
